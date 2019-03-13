@@ -11,18 +11,29 @@
   </div>
 </div>
 <div class="container">
-  <h2>List of Foods</h2>
+  <h2><span class="glyphicon glyphicon-info-sign"></span> List of Foods</h2>
   <hr>
   <div class="row">
     <div class="col-md-12">
-      <h3><span class="glyphicon glyphicon-info-sign"></span> How this sample app works</h3>
-      <ul>
-        <li>This app was deployed to Heroku, either using Git or by using <a href="https://github.com/heroku/php-getting-started">Heroku Button</a> on the repository.</li>
-
-        <li>When Heroku received the source code, it fetched all the dependencies in the <a href="https://github.com/heroku/php-getting-started/blob/master/composer.json">composer.json</a>, creating a deployable slug.</li>
-        <li>The platform then spins up a dyno, a lightweight container that provides an isolated environment in which the slug can be mounted and executed.</li>
-        <li>You can scale your app, manage it, and deploy over <a href="https://addons.heroku.com/">150 add-on services</a>, from the Dashboard or CLI.</li>
-      </ul>
+      <table class="food">
+        <tr>
+          <th>Food Group</th>
+          <th>Food</th>
+          <th>FODMAP Rating</th>
+          <th>Image (Wikipedia)</th>
+          <th>Notes</th>
+        </tr>
+        {% for row in rows %}
+        <tr>
+          <td>{{ row['values']['Food Group'] }}</td>
+          <td>{{ row['values']['Food'] }}</td>
+          <td>{{ row['values']['FODMAP Rating'] }}</td>
+          <td><img src="{{ row['values']['Image'] }}" width="100"></td>
+          <td>{{ row['values']['Notes'] }}</td>
+        </tr>
+        {% else %}
+        {% endfor %}
+      </table>
     </div>
     <!-- <div class="col-md-6">
       <h3><span class="glyphicon glyphicon-link"></span> Next Steps</h3>
