@@ -37,7 +37,6 @@ $app->get('/', function() use($app) {
   // echo json_encode($sorted_rows, JSON_PRETTY_PRINT);
   // echo "</pre>";
 
-
   return $app['twig']->render('index.twig', array(
   	'rows' => $sorted_rows
   ));
