@@ -25,14 +25,23 @@ $app->get('/', function() use($app) {
   
   //list rows with query not working below 
   // $rows = $coda->listRows($docID, $tableID, ['query' => array('Food Group' => 'Grains/Starches')]);
+  
+  //Return 20 last entered rows by index
   $rows = $coda->listRows($docID, $tableID)['items'];
   $sorted_rows = [];
+  $sorted_rows_index = [];
   foreach ($rows as $row) {
   	if ($row['index'] > count($rows) - 20) {
   	  array_push($sorted_rows, $row);
   	}
   }
 
+  //Sort by index desc order
+  usort($sorted_rows, function ($a, $b) {
+    return $b['index'] <=> $a['index'];
+  });
+
+  //See data in pretty print
   // echo "<pre>";
   // echo json_encode($sorted_rows, JSON_PRETTY_PRINT);
   // echo "</pre>";

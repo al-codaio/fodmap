@@ -22,6 +22,7 @@
           <th>FODMAP Rating</th>
           <th>Image (Wikipedia)</th>
           <th>Notes</th>
+          <th>Index</th>
         </tr>
         {% for row in rows %}
         <tr>
@@ -30,6 +31,7 @@
           <td>{{ row['values']['FODMAP Rating'] }}</td>
           <td><img src="{{ row['values']['Image'] }}" width="100"></td>
           <td>{{ row['values']['Notes'] }}</td>
+          <td>{{ row['index'] }}</td>
         </tr>
         {% else %}
         {% endfor %}
