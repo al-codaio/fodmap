@@ -42,9 +42,9 @@ $app->get('/', function() use($app) {
   });
 
   //See data in pretty print
-  // echo "<pre>";
-  // echo json_encode($sorted_rows, JSON_PRETTY_PRINT);
-  // echo "</pre>";
+  echo "<pre>";
+  echo json_encode($rows, JSON_PRETTY_PRINT);
+  echo "</pre>";
 
   return $app['twig']->render('index.twig', array(
   	'rows' => $sorted_rows
