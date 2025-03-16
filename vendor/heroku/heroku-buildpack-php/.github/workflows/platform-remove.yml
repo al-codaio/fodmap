@@ -1,0 +1,96 @@
+name: Platform packages removal from -develop/
+run-name: Removal${{ inputs.dry-run == true && ' dry-run' || '' }} from dist-${{inputs.stack}}-develop/
+
+on:
+  workflow_dispatch:
+    inputs:
+      manifests:
+        description: 'Shell word list of packages manifest names to remove; Bash brace expansion and S3 wildcard expansion is supported, e.g. "php-8.1.{8..16} ext-{redis-4,newrelic-9}.*_php-7.*"'
+        type: string
+        required: true
+      stack:
+        description: 'Stack to remove from'
+        type: choice
+        options:
+        - heroku-20
+        - heroku-22
+        - heroku-24-amd64
+        - heroku-24-arm64
+        required: true
+      dry-run:
+        description: 'Only list package removals, without executing'
+        type: boolean
+        default: false
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  remove:
+    runs-on: ${{ endsWith(inputs.stack, 'arm64') && 'pub-hk-ubuntu-24.04-arm-small' || 'ubuntu-24.04' }}
+    env:
+      AWS_ACCESS_KEY_ID:  ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Expand list of manifests to remove
+        run: |
+          echo '## Manifests input for removal' >> "$GITHUB_STEP_SUMMARY"
+          set -f # no expansion of globs to file names, we want to pass * straight on for S3 wildcard matching (but still expand curly braces)
+          printf -- '- `%s`\n' ${{inputs.manifests}} >> "$GITHUB_STEP_SUMMARY"
+      - name: Restore cached Docker image
+        id: restore-docker
+        uses: actions/cache/restore@v4
+        with:
+          key: docker-cache-heroku-php-build-${{inputs.stack}}.${{github.sha}}
+          path: /tmp/docker-cache.tar.gz
+      - name: Load cached Docker image
+        if: steps.restore-docker.outputs.cache-hit == 'true'
+        run: docker load -i /tmp/docker-cache.tar.gz
+      - name: Build Docker image
+        if: steps.restore-docker.outputs.cache-hit != 'true'
+        # our "input" stack might contain a "-amd64" or "-arm64" suffix, which we strip off for the Dockerfile name
+        run: |
+          shopt -s extglob
+          stackname_with_architecture=${{inputs.stack}}
+          docker build --tag heroku-php-build-${stackname_with_architecture}:${{github.sha}} --file support/build/_docker/${stackname_with_architecture%-?(amd|arm)64}.Dockerfile .
+      - name: Save built Docker image
+        if: steps.restore-docker.outputs.cache-hit != 'true'
+        run: docker save heroku-php-build-${{inputs.stack}}:${{github.sha}} | gzip -1 > /tmp/docker-cache.tar.gz
+      - name: Cache built Docker image
+        if: steps.restore-docker.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          key: ${{ steps.restore-docker.outputs.cache-primary-key }}
+          path: /tmp/docker-cache.tar.gz
+      - name: List packages for removal using given input list
+        if: ${{ inputs.dry-run == true }}
+        run: |
+          set -f
+          set -o pipefail
+          (yes n 2>/dev/null || true) | docker run --rm -i --env-file=support/build/_docker/env.default heroku-php-build-${{inputs.stack}}:${{github.sha}} remove.sh ${{inputs.manifests}} 2>&1 | tee remove.out
+      - name: Remove packages from repository
+        if: ${{ inputs.dry-run == false }}
+        run: |
+          set -f
+          set -o pipefail
+          (yes 2>/dev/null || true) | docker run --rm -i --env-file=support/build/_docker/env.default heroku-php-build-${{inputs.stack}}:${{github.sha}} remove.sh ${{inputs.manifests}} 2>&1 | tee remove.out
+      - name: Output dry-run summary
+        if: ${{ inputs.dry-run == true }}
+        run: |
+          echo '## Packages which would be removed from production bucket' >> "$GITHUB_STEP_SUMMARY"
+          echo '> [!IMPORTANT]' >> "$GITHUB_STEP_SUMMARY"
+          echo '> **This is output from a dry-run**, no packages have been removed.' >> "$GITHUB_STEP_SUMMARY"
+          echo >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          sed -n '/^The following packages will/,/POTENTIALLY DESTRUCTIVE ACTION/{/POTENTIALLY DESTRUCTIVE ACTION/!p}' remove.out >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+      - name: Output removal summary
+        if: ${{ inputs.dry-run == false }}
+        run: |
+          echo '## Packages removed from production bucket' >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          cat remove.out >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,9 @@
+{
+    "require": {
+        "php": "*"
+    },
+    "require-dev": {
+        "codeception/codeception": "^5.0",
+        "codeception/module-asserts": "*"
+    }
+}

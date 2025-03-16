@@ -1,0 +1,43 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="jumbotron text-center">
+  <div class="container">
+    <a href="/" class="lang-logo">
+      <img src="/images/mark-lockup.png">
+    </a>
+    <h1>FODMAP Database using CodaPHP</h1>
+    <p>This is a test using <a href="https://github.com/danielstieber" target="_blank">danielstieber</a>'s <a href="https://github.com/danielstieber/CodaPHP" target="_blank">CodaPHP</a> library. FODMAP stands for Fermentable Oligo-Di-Monosaccharides and Polyols. The low FODMAP diet is recommended for patients with digestive disorders or functional abdominal pain. This list shows foods that contain low/high FODMAPs. Source code <a href="https://github.com/albertc44/fodmap" target="_blank">here</a>.</p>
+  </div>
+</div>
+<div class="container">
+  <h2><span class="glyphicon glyphicon-info-sign"></span> List of Foods</h2>
+  <hr>
+  <div class="row">
+    <div class="col-md-12">
+      <table class="food">
+        <tr>
+          <th>Food Group</th>
+          <th>Food</th>
+          <th>FODMAP Rating</th>
+          <th>Image (Wikipedia)</th>
+          <th>Notes</th>
+          <th>Index</th>
+        </tr>
+        {% for row in rows %}
+        <tr>
+          <td>{{ row['values']['Food Group'] }}</td>
+          <td>{{ row['values']['Food'] }}</td>
+          <td>{{ row['values']['FODMAP Rating'] }}</td>
+          <td><img src="{{ row['values']['Image'] }}" width="100"></td>
+          <td>{{ row['values']['Notes'] }}</td>
+          <td>{{ row['index'] }}</td>
+        </tr>
+        {% else %}
+        {% endfor %}
+      </table>
+    </div>
+  </div> <!-- row -->
+</div>
+
+{% endblock %}
