@@ -45,17 +45,21 @@ class CheckSecurityNode extends Node
         }
 
         $compiler
-            ->write("\$this->sandbox = \$this->env->getExtension('\Twig\Extension\SandboxExtension');\n")
-            ->write('$tags = ')->repr(array_filter($tags))->raw(";\n")
-            ->write('$filters = ')->repr(array_filter($filters))->raw(";\n")
-            ->write('$functions = ')->repr(array_filter($functions))->raw(";\n\n")
+            ->write("\n")
+            ->write("public function checkSecurity()\n")
+            ->write("{\n")
+            ->indent()
+            ->write('static $tags = ')->repr(array_filter($tags))->raw(";\n")
+            ->write('static $filters = ')->repr(array_filter($filters))->raw(";\n")
+            ->write('static $functions = ')->repr(array_filter($functions))->raw(";\n\n")
             ->write("try {\n")
             ->indent()
             ->write("\$this->sandbox->checkSecurity(\n")
             ->indent()
             ->write(!$tags ? "[],\n" : "['".implode("', '", array_keys($tags))."'],\n")
             ->write(!$filters ? "[],\n" : "['".implode("', '", array_keys($filters))."'],\n")
-            ->write(!$functions ? "[]\n" : "['".implode("', '", array_keys($functions))."']\n")
+            ->write(!$functions ? "[],\n" : "['".implode("', '", array_keys($functions))."'],\n")
+            ->write("\$this->source\n")
             ->outdent()
             ->write(");\n")
             ->outdent()
@@ -78,6 +82,8 @@ class CheckSecurityNode extends Node
             ->write("throw \$e;\n")
             ->outdent()
             ->write("}\n\n")
+            ->outdent()
+            ->write("}\n")
         ;
     }
 }

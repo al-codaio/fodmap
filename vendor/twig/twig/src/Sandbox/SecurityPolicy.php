@@ -50,7 +50,7 @@ final class SecurityPolicy implements SecurityPolicyInterface
     {
         $this->allowedMethods = [];
         foreach ($methods as $class => $m) {
-            $this->allowedMethods[$class] = array_map('strtolower', \is_array($m) ? $m : [$m]);
+            $this->allowedMethods[$class] = array_map(function ($value) { return strtr($value, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'); }, \is_array($m) ? $m : [$m]);
         }
     }
 
@@ -88,15 +88,14 @@ final class SecurityPolicy implements SecurityPolicyInterface
     public function checkMethodAllowed($obj, $method)
     {
         if ($obj instanceof Template || $obj instanceof Markup) {
-            return true;
+            return;
         }
 
         $allowed = false;
-        $method = strtolower($method);
+        $method = strtr($method, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz');
         foreach ($this->allowedMethods as $class => $methods) {
-            if ($obj instanceof $class) {
-                $allowed = \in_array($method, $methods);
-
+            if ($obj instanceof $class && \in_array($method, $methods)) {
+                $allowed = true;
                 break;
             }
         }
@@ -111,9 +110,8 @@ final class SecurityPolicy implements SecurityPolicyInterface
     {
         $allowed = false;
         foreach ($this->allowedProperties as $class => $properties) {
-            if ($obj instanceof $class) {
-                $allowed = \in_array($property, \is_array($properties) ? $properties : [$properties]);
-
+            if ($obj instanceof $class && \in_array($property, \is_array($properties) ? $properties : [$properties])) {
+                $allowed = true;
                 break;
             }
         }

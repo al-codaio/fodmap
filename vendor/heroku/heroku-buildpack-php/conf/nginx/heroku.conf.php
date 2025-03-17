@@ -1,5 +1,6 @@
 http {
 	include       mime.types;
+	include       heroku.types;
 	default_type  application/octet-stream;
 
 	#log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
@@ -60,8 +61,10 @@ http {
 
 		include "<?=getenv('HEROKU_PHP_NGINX_CONFIG_INCLUDE')?>";
 
-		# restrict access to hidden files, just in case
-		location ~ /\. {
+		# restrict access to hidden files, just in case, except for the
+		# visible content from within the `/.well-known/` hidden directory.
+		# https://tools.ietf.org/html/rfc5785
+		location ~* /\.(?!well-known\/) {
 			deny all;
 		}
 
