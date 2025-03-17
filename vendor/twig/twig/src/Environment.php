@@ -32,18 +32,18 @@ use Twig\RuntimeLoader\RuntimeLoaderInterface;
 use Twig\TokenParser\TokenParserInterface;
 
 /**
- * Stores the Twig configuration.
+ * Stores the Twig configuration and renders templates.
  *
  * @author Fabien Potencier <fabien@symfony.com>
  */
 class Environment
 {
-    const VERSION = '2.7.2';
-    const VERSION_ID = 20702;
-    const MAJOR_VERSION = 2;
-    const MINOR_VERSION = 7;
-    const RELEASE_VERSION = 2;
-    const EXTRA_VERSION = '';
+    public const VERSION = '2.16.1';
+    public const VERSION_ID = 21601;
+    public const MAJOR_VERSION = 2;
+    public const MINOR_VERSION = 16;
+    public const RELEASE_VERSION = 1;
+    public const EXTRA_VERSION = '';
 
     private $charset;
     private $loader;
@@ -64,7 +64,6 @@ class Environment
     private $runtimeLoaders = [];
     private $runtimes = [];
     private $optionsHash;
-    private $loading = [];
 
     /**
      * Constructor.
@@ -119,7 +118,7 @@ class Environment
         $this->setCharset($options['charset']);
         $this->baseTemplateClass = '\\'.ltrim($options['base_template_class'], '\\');
         if ('\\'.Template::class !== $this->baseTemplateClass && '\Twig_Template' !== $this->baseTemplateClass) {
-            @trigger_error('The "base_template_class" option on '.__CLASS__.' is deprecated since Twig 2.7.0.', E_USER_DEPRECATED);
+            @trigger_error('The "base_template_class" option on '.__CLASS__.' is deprecated since Twig 2.7.0.', \E_USER_DEPRECATED);
         }
         $this->autoReload = null === $options['auto_reload'] ? $this->debug : (bool) $options['auto_reload'];
         $this->strictVariables = (bool) $options['strict_variables'];
@@ -139,7 +138,7 @@ class Environment
     public function getBaseTemplateClass()
     {
         if (1 > \func_num_args() || \func_get_arg(0)) {
-            @trigger_error('The '.__METHOD__.' is deprecated since Twig 2.7.0.', E_USER_DEPRECATED);
+            @trigger_error('The '.__METHOD__.' is deprecated since Twig 2.7.0.', \E_USER_DEPRECATED);
         }
 
         return $this->baseTemplateClass;
@@ -152,7 +151,7 @@ class Environment
      */
     public function setBaseTemplateClass($class)
     {
-        @trigger_error('The '.__METHOD__.' is deprecated since Twig 2.7.0.', E_USER_DEPRECATED);
+        @trigger_error('The '.__METHOD__.' is deprecated since Twig 2.7.0.', \E_USER_DEPRECATED);
 
         $this->baseTemplateClass = $class;
         $this->updateOptionsHash();
@@ -265,14 +264,14 @@ class Environment
     {
         if (\is_string($cache)) {
             $this->originalCache = $cache;
-            $this->cache = new FilesystemCache($cache);
+            $this->cache = new FilesystemCache($cache, $this->autoReload ? FilesystemCache::FORCE_BYTECODE_INVALIDATION : 0);
         } elseif (false === $cache) {
             $this->originalCache = $cache;
             $this->cache = new NullCache();
         } elseif ($cache instanceof CacheInterface) {
             $this->originalCache = $this->cache = $cache;
         } else {
-            throw new \LogicException(sprintf('Cache can only be a string, false, or a \Twig\Cache\CacheInterface implementation.'));
+            throw new \LogicException('Cache can only be a string, false, or a \Twig\Cache\CacheInterface implementation.');
         }
     }
 
@@ -299,7 +298,7 @@ class Environment
     {
         $key = $this->getLoader()->getCacheKey($name).$this->optionsHash;
 
-        return $this->templateClassPrefix.hash('sha256', $key).(null === $index ? '' : '___'.$index);
+        return $this->templateClassPrefix.hash(\PHP_VERSION_ID < 80100 ? 'sha256' : 'xxh128', $key).(null === $index ? '' : '___'.$index);
     }
 
     /**
@@ -352,7 +351,7 @@ class Environment
         }
 
         if ($name instanceof Template) {
-            @trigger_error('Passing a \Twig\Template instance to '.__METHOD__.' is deprecated since Twig 2.7.0, use \Twig\TemplateWrapper instead.', E_USER_DEPRECATED);
+            @trigger_error('Passing a \Twig\Template instance to '.__METHOD__.' is deprecated since Twig 2.7.0, use \Twig\TemplateWrapper instead.', \E_USER_DEPRECATED);
 
             return new TemplateWrapper($this, $name);
         }
@@ -403,6 +402,7 @@ class Environment
                 $this->cache->load($key);
             }
 
+            $source = null;
             if (!class_exists($cls, false)) {
                 $source = $this->getLoader()->getSourceContext($name);
                 $content = $this->compileSource($source);
@@ -427,19 +427,7 @@ class Environment
         // to be removed in 3.0
         $this->extensionSet->initRuntime($this);
 
-        if (isset($this->loading[$cls])) {
-            throw new RuntimeError(sprintf('Circular reference detected for Twig template "%s", path: %s.', $name, implode(' -> ', array_merge($this->loading, [$name]))));
-        }
-
-        $this->loading[$cls] = $name;
-
-        try {
-            $this->loadedTemplates[$cls] = new $cls($this);
-        } finally {
-            unset($this->loading[$cls]);
-        }
-
-        return $this->loadedTemplates[$cls];
+        return $this->loadedTemplates[$cls] = new $cls($this);
     }
 
     /**
@@ -447,16 +435,22 @@ class Environment
      *
      * This method should not be used as a generic way to load templates.
      *
-     * @param string $template The template name
+     * @param string $template The template source
+     * @param string $name     An optional name of the template to be used in error messages
      *
      * @return TemplateWrapper A template instance representing the given template name
      *
      * @throws LoaderError When the template cannot be found
      * @throws SyntaxError When an error occurred during compilation
      */
-    public function createTemplate($template)
+    public function createTemplate($template, string $name = null)
     {
-        $name = sprintf('__string_template__%s', hash('sha256', $template, false));
+        $hash = hash(\PHP_VERSION_ID < 80100 ? 'sha256' : 'xxh128', $template, false);
+        if (null !== $name) {
+            $name = sprintf('%s (string template %s)', $name, $hash);
+        } else {
+            $name = sprintf('__string_template__%s', $hash);
+        }
 
         $loader = new ChainLoader([
             new ArrayLoader([$name => $template]),
@@ -496,7 +490,7 @@ class Environment
      *
      * @param string|TemplateWrapper|array $names A template or an array of templates to try consecutively
      *
-     * @return TemplateWrapper
+     * @return TemplateWrapper|Template
      *
      * @throws LoaderError When none of the templates can be found
      * @throws SyntaxError When an error occurred during compilation
@@ -504,14 +498,23 @@ class Environment
     public function resolveTemplate($names)
     {
         if (!\is_array($names)) {
-            return $this->load($names);
+            $names = [$names];
         }
 
+        $count = \count($names);
         foreach ($names as $name) {
-            try {
-                return $this->load($name);
-            } catch (LoaderError $e) {
+            if ($name instanceof Template) {
+                return $name;
             }
+            if ($name instanceof TemplateWrapper) {
+                return $name;
+            }
+
+            if (1 !== $count && !$this->getLoader()->exists($name)) {
+                continue;
+            }
+
+            return $this->loadTemplate($name);
         }
 
         throw new LoaderError(sprintf('Unable to find one of the following templates: "%s".', implode('", "', $names)));
@@ -619,7 +622,7 @@ class Environment
      */
     public function setCharset($charset)
     {
-        if ('UTF8' === $charset = strtoupper($charset)) {
+        if ('UTF8' === $charset = null === $charset ? null : strtoupper($charset)) {
             // iconv on Windows requires "UTF-8" instead of "UTF8"
             $charset = 'UTF-8';
         }
@@ -978,8 +981,8 @@ class Environment
     {
         $this->optionsHash = implode(':', [
             $this->extensionSet->getSignature(),
-            PHP_MAJOR_VERSION,
-            PHP_MINOR_VERSION,
+            \PHP_MAJOR_VERSION,
+            \PHP_MINOR_VERSION,
             self::VERSION,
             (int) $this->debug,
             $this->baseTemplateClass,

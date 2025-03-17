@@ -3,6 +3,15 @@ name = "PHP"
 
 	[publish.Ignore]
 	files = [
+		".github/",
 		".gitignore",
-		".github/"
+		".rspec_parallel",
+		"support/build/",
+		"support/devcenter/",
+		"test/",
+		"Gemfile",
+		"Gemfile.lock",
+		"hatchet.json",
+		"hatchet.lock",
+		"requirements.txt",
 	]
