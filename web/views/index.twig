@@ -15,29 +15,193 @@
   <hr>
   <div class="row">
     <div class="col-md-12">
-      <table class="food">
-        <tr>
-          <th>Food Group</th>
-          <th>Food</th>
-          <th>FODMAP Rating</th>
-          <th>Image (Wikipedia)</th>
-          <th>Notes</th>
-          <th>Index</th>
-        </tr>
-        {% for row in rows %}
-        <tr>
-          <td>{{ row['values']['Food Group'] }}</td>
-          <td>{{ row['values']['Food'] }}</td>
-          <td>{{ row['values']['FODMAP Rating'] }}</td>
-          <td><img src="{{ row['values']['Image'] }}" width="100"></td>
-          <td>{{ row['values']['Notes'] }}</td>
-          <td>{{ row['index'] }}</td>
-        </tr>
-        {% else %}
-        {% endfor %}
-      </table>
+      <div class="table-responsive">
+        <table class="food-table">
+          <thead>
+            <tr>
+              <th class="sortable" data-sort="food-group">Food Group <span class="sort-icon">↕</span></th>
+              <th class="sortable" data-sort="food">Food <span class="sort-icon">↕</span></th>
+              <th class="sortable" data-sort="rating">FODMAP Rating <span class="sort-icon">↕</span></th>
+              <th>Image</th>
+              <th class="sortable" data-sort="notes">Notes <span class="sort-icon">↕</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in rows %}
+            <tr class="food-item">
+              <td class="food-group">{{ row['values']['Food Group'] }}</td>
+              <td class="food">{{ row['values']['Food'] }}</td>
+              <td class="rating">
+                <span class="fodmap-rating {{ row['values']['FODMAP Rating']|lower }}">
+                  {{ row['values']['FODMAP Rating'] }}
+                </span>
+              </td>
+              <td class="food-image">
+                {% if row['values']['Image'] %}
+                  <img src="{{ row['values']['Image'] }}" alt="{{ row['values']['Food'] }}">
+                {% endif %}
+              </td>
+              <td class="notes">{{ row['values']['Notes'] }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
     </div>
-  </div> <!-- row -->
+  </div>
 </div>
 
+<style>
+.food-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  margin: 20px 0;
+}
+
+.food-table th,
+.food-table td {
+  padding: 12px 15px;
+  border-bottom: 1px solid #ddd;
+}
+
+.food-table thead th {
+  background: #f8f9fa;
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.85em;
+  letter-spacing: 0.5px;
+  color: #495057;
+}
+
+.food-table tbody tr:hover {
+  background-color: #f8f9fa;
+  transition: background-color 0.2s ease;
+}
+
+.sortable {
+  cursor: pointer;
+  position: relative;
+  padding-right: 25px !important;
+}
+
+.sort-icon {
+  position: absolute;
+  right: 8px;
+  opacity: 0.3;
+  transition: opacity 0.2s ease;
+}
+
+.sortable:hover .sort-icon {
+  opacity: 1;
+}
+
+.sortable.asc .sort-icon {
+  content: "↑";
+}
+
+.sortable.desc .sort-icon {
+  content: "↓";
+}
+
+.food-image img {
+  width: 60px;
+  height: 60px;
+  object-fit: cover;
+  border-radius: 4px;
+  transition: transform 0.2s ease;
+}
+
+.food-image img:hover {
+  transform: scale(1.5);
+}
+
+.fodmap-rating {
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-weight: 500;
+  font-size: 0.9em;
+}
+
+.fodmap-rating.high {
+  background-color: #ffd7d7;
+  color: #d63031;
+}
+
+.fodmap-rating.low {
+  background-color: #d4edda;
+  color: #28a745;
+}
+
+.fodmap-rating.moderate {
+  background-color: #fff3cd;
+  color: #856404;
+}
+
+/* Animation classes */
+.table-row-move {
+  transition: transform 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.food-item {
+  animation: fadeIn 0.3s ease;
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const table = document.querySelector('.food-table');
+  const headers = table.querySelectorAll('th.sortable');
+  
+  headers.forEach(header => {
+    header.addEventListener('click', () => {
+      const sortBy = header.dataset.sort;
+      const isAsc = !header.classList.contains('asc');
+      
+      // Reset all headers
+      headers.forEach(h => {
+        h.classList.remove('asc', 'desc');
+        h.querySelector('.sort-icon').textContent = '↕';
+      });
+      
+      // Set current header
+      header.classList.add(isAsc ? 'asc' : 'desc');
+      header.querySelector('.sort-icon').textContent = isAsc ? '↑' : '↓';
+      
+      // Sort the table
+      const tbody = table.querySelector('tbody');
+      const rows = Array.from(tbody.querySelectorAll('tr'));
+      
+      rows.sort((a, b) => {
+        const aValue = a.querySelector(`.${sortBy}`).textContent.trim();
+        const bValue = b.querySelector(`.${sortBy}`).textContent.trim();
+        return isAsc ? aValue.localeCompare(bValue) : bValue.localeCompare(aValue);
+      });
+      
+      // Animate rows
+      rows.forEach(row => {
+        row.style.animation = 'none';
+        row.offsetHeight; // Trigger reflow
+        row.style.animation = null;
+        row.classList.remove('food-item');
+        void row.offsetWidth; // Trigger reflow
+        row.classList.add('food-item');
+      });
+      
+      // Clear and re-append rows
+      tbody.innerHTML = '';
+      rows.forEach(row => tbody.appendChild(row));
+    });
+  });
+});
+</script>
 {% endblock %}
