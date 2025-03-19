@@ -22,8 +22,6 @@ use Symfony\Component\HttpKernel\KernelEvents;
 
 /**
  * @author Fabien Potencier <fabien@symfony.com>
- *
- * @final since Symfony 4.4
  */
 class RequestDataCollector extends DataCollector implements EventSubscriberInterface, LateDataCollectorInterface
 {
@@ -36,10 +34,8 @@ class RequestDataCollector extends DataCollector implements EventSubscriberInter
 
     /**
      * {@inheritdoc}
-     *
-     * @param \Throwable|null $exception
      */
-    public function collect(Request $request, Response $response/* , \Throwable $exception = null */)
+    public function collect(Request $request, Response $response, \Exception $exception = null)
     {
         // attributes are serialized and as they can be anything, they need to be converted to strings.
         $attributes = [];
@@ -53,16 +49,23 @@ class RequestDataCollector extends DataCollector implements EventSubscriberInter
             }
         }
 
-        $content = $request->getContent();
+        $content = null;
+        try {
+            $content = $request->getContent();
+        } catch (\LogicException $e) {
+            // the user already got the request content as a resource
+            $content = false;
+        }
 
         $sessionMetadata = [];
         $sessionAttributes = [];
+        $session = null;
         $flashes = [];
         if ($request->hasSession()) {
             $session = $request->getSession();
             if ($session->isStarted()) {
-                $sessionMetadata['Created'] = date(\DATE_RFC822, $session->getMetadataBag()->getCreated());
-                $sessionMetadata['Last used'] = date(\DATE_RFC822, $session->getMetadataBag()->getLastUsed());
+                $sessionMetadata['Created'] = date(DATE_RFC822, $session->getMetadataBag()->getCreated());
+                $sessionMetadata['Last used'] = date(DATE_RFC822, $session->getMetadataBag()->getLastUsed());
                 $sessionMetadata['Lifetime'] = $session->getMetadataBag()->getLifetime();
                 $sessionAttributes = $session->all();
                 $flashes = $session->getFlashBag()->peekAll();
@@ -77,9 +80,9 @@ class RequestDataCollector extends DataCollector implements EventSubscriberInter
         }
 
         $dotenvVars = [];
-        foreach (explode(',', $_SERVER['SYMFONY_DOTENV_VARS'] ?? $_ENV['SYMFONY_DOTENV_VARS'] ?? '') as $name) {
-            if ('' !== $name && isset($_ENV[$name])) {
-                $dotenvVars[$name] = $_ENV[$name];
+        foreach (explode(',', getenv('SYMFONY_DOTENV_VARS')) as $name) {
+            if ('' !== $name && false !== $value = getenv($name)) {
+                $dotenvVars[$name] = $value;
             }
         }
 
@@ -88,7 +91,7 @@ class RequestDataCollector extends DataCollector implements EventSubscriberInter
             'format' => $request->getRequestFormat(),
             'content' => $content,
             'content_type' => $response->headers->get('Content-Type', 'text/html'),
-            'status_text' => Response::$statusTexts[$statusCode] ?? '',
+            'status_text' => isset(Response::$statusTexts[$statusCode]) ? Response::$statusTexts[$statusCode] : '',
             'status_code' => $statusCode,
             'request_query' => $request->query->all(),
             'request_request' => $request->request->all(),
@@ -150,7 +153,7 @@ class RequestDataCollector extends DataCollector implements EventSubscriberInter
                     'method' => $request->getMethod(),
                     'controller' => $this->parseController($request->attributes->get('_controller')),
                     'status_code' => $statusCode,
-                    'status_text' => Response::$statusTexts[$statusCode],
+                    'status_text' => Response::$statusTexts[(int) $statusCode],
                 ]),
                 0, '/', null, $request->isSecure(), true, false, 'lax'
             ));
@@ -249,18 +252,6 @@ class RequestDataCollector extends DataCollector implements EventSubscriberInter
         return $this->data['content'];
     }
 
-    public function isJsonRequest()
-    {
-        return 1 === preg_match('{^application/(?:\w+\++)*json$}i', $this->data['request_headers']['content-type']);
-    }
-
-    public function getPrettyJson()
-    {
-        $decoded = json_decode($this->getContent());
-
-        return \JSON_ERROR_NONE === json_last_error() ? json_encode($decoded, \JSON_PRETTY_PRINT) : null;
-    }
-
     public function getContentType()
     {
         return $this->data['content_type'];
@@ -339,25 +330,19 @@ class RequestDataCollector extends DataCollector implements EventSubscriberInter
      */
     public function getRedirect()
     {
-        return $this->data['redirect'] ?? false;
+        return isset($this->data['redirect']) ? $this->data['redirect'] : false;
     }
 
     public function getForwardToken()
     {
-        return $this->data['forward_token'] ?? null;
+        return isset($this->data['forward_token']) ? $this->data['forward_token'] : null;
     }
 
-    /**
-     * @final since Symfony 4.3
-     */
     public function onKernelController(FilterControllerEvent $event)
     {
         $this->controllers[$event->getRequest()] = $event->getController();
     }
 
-    /**
-     * @final since Symfony 4.3
-     */
     public function onKernelResponse(FilterResponseEvent $event)
     {
         if (!$event->isMasterRequest()) {
@@ -388,13 +373,13 @@ class RequestDataCollector extends DataCollector implements EventSubscriberInter
     /**
      * Parse a controller.
      *
-     * @param string|object|array|null $controller The controller to parse
+     * @param mixed $controller The controller to parse
      *
      * @return array|string An array of controller data or a simple string
      */
     protected function parseController($controller)
     {
-        if (\is_string($controller) && str_contains($controller, '::')) {
+        if (\is_string($controller) && false !== strpos($controller, '::')) {
             $controller = explode('::', $controller);
         }
 
@@ -431,7 +416,7 @@ class RequestDataCollector extends DataCollector implements EventSubscriberInter
                 'line' => $r->getStartLine(),
             ];
 
-            if (str_contains($r->name, '{closure}')) {
+            if (false !== strpos($r->name, '{closure}')) {
                 return $controller;
             }
             $controller['method'] = $r->name;

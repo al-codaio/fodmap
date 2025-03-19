@@ -17,7 +17,7 @@ namespace Symfony\Component\HttpFoundation\Session\Storage\Handler;
  * @author Markus Bachmann <markus.bachmann@bachi.biz>
  *
  * @see https://packagist.org/packages/mongodb/mongodb
- * @see https://php.net/mongodb
+ * @see http://php.net/manual/en/set.mongodb.php
  */
 class MongoDbSessionHandler extends AbstractSessionHandler
 {
@@ -51,22 +51,25 @@ class MongoDbSessionHandler extends AbstractSessionHandler
      * A TTL collections can be used on MongoDB 2.2+ to cleanup expired sessions
      * automatically. Such an index can for example look like this:
      *
-     *     db.<session-collection>.createIndex(
+     *     db.<session-collection>.ensureIndex(
      *         { "<expiry-field>": 1 },
      *         { "expireAfterSeconds": 0 }
      *     )
      *
-     * More details on: https://docs.mongodb.org/manual/tutorial/expire-data/
+     * More details on: http://docs.mongodb.org/manual/tutorial/expire-data/
      *
      * If you use such an index, you can drop `gc_probability` to 0 since
      * no garbage-collection is required.
+     *
+     * @param \MongoDB\Client $mongo   A MongoDB\Client instance
+     * @param array           $options An associative array of field options
      *
      * @throws \InvalidArgumentException When "database" or "collection" not provided
      */
     public function __construct(\MongoDB\Client $mongo, array $options)
     {
         if (!isset($options['database']) || !isset($options['collection'])) {
-            throw new \InvalidArgumentException('You must provide the "database" and "collection" option for MongoDBSessionHandler.');
+            throw new \InvalidArgumentException('You must provide the "database" and "collection" option for MongoDBSessionHandler');
         }
 
         $this->mongo = $mongo;
@@ -80,9 +83,8 @@ class MongoDbSessionHandler extends AbstractSessionHandler
     }
 
     /**
-     * @return bool
+     * {@inheritdoc}
      */
-    #[\ReturnTypeWillChange]
     public function close()
     {
         return true;
@@ -101,14 +103,15 @@ class MongoDbSessionHandler extends AbstractSessionHandler
     }
 
     /**
-     * @return int|false
+     * {@inheritdoc}
      */
-    #[\ReturnTypeWillChange]
     public function gc($maxlifetime)
     {
-        return $this->getCollection()->deleteMany([
+        $this->getCollection()->deleteMany([
             $this->options['expiry_field'] => ['$lt' => new \MongoDB\BSON\UTCDateTime()],
-        ])->getDeletedCount();
+        ]);
+
+        return true;
     }
 
     /**
@@ -116,7 +119,7 @@ class MongoDbSessionHandler extends AbstractSessionHandler
      */
     protected function doWrite($sessionId, $data)
     {
-        $expiry = new \MongoDB\BSON\UTCDateTime((time() + (int) \ini_get('session.gc_maxlifetime')) * 1000);
+        $expiry = new \MongoDB\BSON\UTCDateTime((time() + (int) ini_get('session.gc_maxlifetime')) * 1000);
 
         $fields = [
             $this->options['time_field'] => new \MongoDB\BSON\UTCDateTime(),
@@ -134,12 +137,11 @@ class MongoDbSessionHandler extends AbstractSessionHandler
     }
 
     /**
-     * @return bool
+     * {@inheritdoc}
      */
-    #[\ReturnTypeWillChange]
     public function updateTimestamp($sessionId, $data)
     {
-        $expiry = new \MongoDB\BSON\UTCDateTime((time() + (int) \ini_get('session.gc_maxlifetime')) * 1000);
+        $expiry = new \MongoDB\BSON\UTCDateTime((time() + (int) ini_get('session.gc_maxlifetime')) * 1000);
 
         $this->getCollection()->updateOne(
             [$this->options['id_field'] => $sessionId],
@@ -169,7 +171,10 @@ class MongoDbSessionHandler extends AbstractSessionHandler
         return $dbData[$this->options['data_field']]->getData();
     }
 
-    private function getCollection(): \MongoDB\Collection
+    /**
+     * @return \MongoDB\Collection
+     */
+    private function getCollection()
     {
         if (null === $this->collection) {
             $this->collection = $this->mongo->selectCollection($this->options['database'], $this->options['collection']);

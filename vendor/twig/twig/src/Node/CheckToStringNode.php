@@ -24,7 +24,7 @@ use Twig\Node\Expression\AbstractExpression;
  *
  * @author Fabien Potencier <fabien@symfony.com>
  */
-class CheckToStringNode extends AbstractExpression
+class CheckToStringNode extends Node
 {
     public function __construct(AbstractExpression $expr)
     {
@@ -33,13 +33,10 @@ class CheckToStringNode extends AbstractExpression
 
     public function compile(Compiler $compiler)
     {
-        $expr = $this->getNode('expr');
         $compiler
             ->raw('$this->sandbox->ensureToStringAllowed(')
-            ->subcompile($expr)
-            ->raw(', ')
-            ->repr($expr->getTemplateLine())
-            ->raw(', $this->source)')
+            ->subcompile($this->getNode('expr'))
+            ->raw(')')
         ;
     }
 }

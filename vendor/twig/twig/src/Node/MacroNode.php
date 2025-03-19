@@ -21,13 +21,13 @@ use Twig\Error\SyntaxError;
  */
 class MacroNode extends Node
 {
-    public const VARARGS_NAME = 'varargs';
+    const VARARGS_NAME = 'varargs';
 
-    public function __construct(string $name, Node $body, Node $arguments, int $lineno, string $tag = null)
+    public function __construct($name, Node $body, Node $arguments, $lineno, $tag = null)
     {
         foreach ($arguments as $argumentName => $argument) {
             if (self::VARARGS_NAME === $argumentName) {
-                throw new SyntaxError(sprintf('The argument "%s" in macro "%s" cannot be defined because the variable "%s" is reserved for arbitrary arguments.', self::VARARGS_NAME, $name, self::VARARGS_NAME), $argument->getTemplateLine(), $argument->getSourceContext());
+                throw new SyntaxError(sprintf('The argument "%s" in macro "%s" cannot be defined because the variable "%s" is reserved for arbitrary arguments.', self::VARARGS_NAME, $name, self::VARARGS_NAME), $argument->getTemplateLine(), null, null, false);
             }
         }
 
@@ -63,7 +63,9 @@ class MacroNode extends Node
             ->raw(")\n")
             ->write("{\n")
             ->indent()
-            ->write("\$macros = \$this->macros;\n")
+        ;
+
+        $compiler
             ->write("\$context = \$this->env->mergeGlobals([\n")
             ->indent()
         ;
@@ -88,13 +90,7 @@ class MacroNode extends Node
             ->outdent()
             ->write("]);\n\n")
             ->write("\$blocks = [];\n\n")
-        ;
-        if ($compiler->getEnvironment()->isDebug()) {
-            $compiler->write("ob_start();\n");
-        } else {
-            $compiler->write("ob_start(function () { return ''; });\n");
-        }
-        $compiler
+            ->write("ob_start();\n")
             ->write("try {\n")
             ->indent()
             ->subcompile($this->getNode('body'))

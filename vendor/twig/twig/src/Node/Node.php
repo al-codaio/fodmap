@@ -13,7 +13,6 @@
 namespace Twig\Node;
 
 use Twig\Compiler;
-use Twig\Source;
 
 /**
  * Represents a node in the AST.
@@ -28,19 +27,23 @@ class Node implements \Countable, \IteratorAggregate
     protected $tag;
 
     private $name;
-    private $sourceContext;
 
     /**
+     * Constructor.
+     *
+     * The nodes are automatically made available as properties ($this->node).
+     * The attributes are automatically made available as array items ($this['name']).
+     *
      * @param array  $nodes      An array of named nodes
      * @param array  $attributes An array of attributes (should not be nodes)
      * @param int    $lineno     The line number
      * @param string $tag        The tag name associated with the Node
      */
-    public function __construct(array $nodes = [], array $attributes = [], int $lineno = 0, string $tag = null)
+    public function __construct(array $nodes = [], array $attributes = [], $lineno = 0, $tag = null)
     {
         foreach ($nodes as $name => $node) {
             if (!$node instanceof self) {
-                throw new \InvalidArgumentException(sprintf('Using "%s" for the value of node "%s" of "%s" is not supported. You must pass a \Twig\Node\Node instance.', \is_object($node) ? \get_class($node) : (null === $node ? 'null' : \gettype($node)), $name, static::class));
+                throw new \InvalidArgumentException(sprintf('Using "%s" for the value of node "%s" of "%s" is not supported. You must pass a \Twig\Node\Node instance.', \is_object($node) ? \get_class($node) : null === $node ? 'null' : \gettype($node), $name, \get_class($this)));
             }
         }
         $this->nodes = $nodes;
@@ -56,7 +59,7 @@ class Node implements \Countable, \IteratorAggregate
             $attributes[] = sprintf('%s: %s', $name, str_replace("\n", '', var_export($value, true)));
         }
 
-        $repr = [static::class.'('.implode(', ', $attributes)];
+        $repr = [\get_class($this).'('.implode(', ', $attributes)];
 
         if (\count($this->nodes)) {
             foreach ($this->nodes as $name => $node) {
@@ -108,7 +111,7 @@ class Node implements \Countable, \IteratorAggregate
     public function getAttribute($name)
     {
         if (!\array_key_exists($name, $this->attributes)) {
-            throw new \LogicException(sprintf('Attribute "%s" does not exist for Node "%s".', $name, static::class));
+            throw new \LogicException(sprintf('Attribute "%s" does not exist for Node "%s".', $name, \get_class($this)));
         }
 
         return $this->attributes[$name];
@@ -142,7 +145,7 @@ class Node implements \Countable, \IteratorAggregate
     public function getNode($name)
     {
         if (!isset($this->nodes[$name])) {
-            throw new \LogicException(sprintf('Node "%s" does not exist for Node "%s".', $name, static::class));
+            throw new \LogicException(sprintf('Node "%s" does not exist for Node "%s".', $name, \get_class($this)));
         }
 
         return $this->nodes[$name];
@@ -158,58 +161,27 @@ class Node implements \Countable, \IteratorAggregate
         unset($this->nodes[$name]);
     }
 
-    /**
-     * @return int
-     */
-    #[\ReturnTypeWillChange]
     public function count()
     {
         return \count($this->nodes);
     }
 
-    /**
-     * @return \Traversable
-     */
-    #[\ReturnTypeWillChange]
     public function getIterator()
     {
         return new \ArrayIterator($this->nodes);
     }
 
-    /**
-     * @deprecated since 2.8 (to be removed in 3.0)
-     */
-    public function setTemplateName($name/*, $triggerDeprecation = true */)
+    public function setTemplateName($name)
     {
-        $triggerDeprecation = 2 > \func_num_args() || \func_get_arg(1);
-        if ($triggerDeprecation) {
-            @trigger_error('The '.__METHOD__.' method is deprecated since version 2.8 and will be removed in 3.0. Use setSourceContext() instead.', \E_USER_DEPRECATED);
-        }
-
         $this->name = $name;
         foreach ($this->nodes as $node) {
-            $node->setTemplateName($name, $triggerDeprecation);
+            $node->setTemplateName($name);
         }
     }
 
     public function getTemplateName()
     {
-        return $this->sourceContext ? $this->sourceContext->getName() : null;
-    }
-
-    public function setSourceContext(Source $source)
-    {
-        $this->sourceContext = $source;
-        foreach ($this->nodes as $node) {
-            $node->setSourceContext($source);
-        }
-
-        $this->setTemplateName($source->getName(), false);
-    }
-
-    public function getSourceContext()
-    {
-        return $this->sourceContext;
+        return $this->name;
     }
 }
 

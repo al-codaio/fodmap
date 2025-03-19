@@ -99,7 +99,7 @@ class Profile
     /**
      * Returns the IP.
      *
-     * @return string|null The IP
+     * @return string The IP
      */
     public function getIp()
     {
@@ -119,7 +119,7 @@ class Profile
     /**
      * Returns the request method.
      *
-     * @return string|null The request method
+     * @return string The request method
      */
     public function getMethod()
     {
@@ -134,16 +134,13 @@ class Profile
     /**
      * Returns the URL.
      *
-     * @return string|null The URL
+     * @return string The URL
      */
     public function getUrl()
     {
         return $this->url;
     }
 
-    /**
-     * @param string $url
-     */
     public function setUrl($url)
     {
         $this->url = $url;
@@ -156,7 +153,11 @@ class Profile
      */
     public function getTime()
     {
-        return $this->time ?? 0;
+        if (null === $this->time) {
+            return 0;
+        }
+
+        return $this->time;
     }
 
     /**
@@ -176,7 +177,7 @@ class Profile
     }
 
     /**
-     * @return int|null
+     * @return int
      */
     public function getStatusCode()
     {
@@ -287,9 +288,6 @@ class Profile
         return isset($this->collectors[$name]);
     }
 
-    /**
-     * @return array
-     */
     public function __sleep()
     {
         return ['token', 'parent', 'children', 'collectors', 'ip', 'method', 'url', 'time', 'statusCode'];

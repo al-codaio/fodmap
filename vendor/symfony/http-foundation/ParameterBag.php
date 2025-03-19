@@ -23,6 +23,9 @@ class ParameterBag implements \IteratorAggregate, \Countable
      */
     protected $parameters;
 
+    /**
+     * @param array $parameters An array of parameters
+     */
     public function __construct(array $parameters = [])
     {
         $this->parameters = $parameters;
@@ -50,6 +53,8 @@ class ParameterBag implements \IteratorAggregate, \Countable
 
     /**
      * Replaces the current parameters by a new set.
+     *
+     * @param array $parameters An array of parameters
      */
     public function replace(array $parameters = [])
     {
@@ -58,6 +63,8 @@ class ParameterBag implements \IteratorAggregate, \Countable
 
     /**
      * Adds parameters.
+     *
+     * @param array $parameters An array of parameters
      */
     public function add(array $parameters = [])
     {
@@ -147,7 +154,7 @@ class ParameterBag implements \IteratorAggregate, \Countable
     public function getDigits($key, $default = '')
     {
         // we need to remove - and + because they're allowed in the filter
-        return str_replace(['-', '+'], '', $this->filter($key, $default, \FILTER_SANITIZE_NUMBER_INT));
+        return str_replace(['-', '+'], '', $this->filter($key, $default, FILTER_SANITIZE_NUMBER_INT));
     }
 
     /**
@@ -173,7 +180,7 @@ class ParameterBag implements \IteratorAggregate, \Countable
      */
     public function getBoolean($key, $default = false)
     {
-        return $this->filter($key, $default, \FILTER_VALIDATE_BOOLEAN);
+        return $this->filter($key, $default, FILTER_VALIDATE_BOOLEAN);
     }
 
     /**
@@ -184,11 +191,11 @@ class ParameterBag implements \IteratorAggregate, \Countable
      * @param int    $filter  FILTER_* constant
      * @param mixed  $options Filter options
      *
-     * @see https://php.net/filter-var
+     * @see http://php.net/manual/en/function.filter-var.php
      *
      * @return mixed
      */
-    public function filter($key, $default = null, $filter = \FILTER_DEFAULT, $options = [])
+    public function filter($key, $default = null, $filter = FILTER_DEFAULT, $options = [])
     {
         $value = $this->get($key, $default);
 
@@ -199,7 +206,7 @@ class ParameterBag implements \IteratorAggregate, \Countable
 
         // Add a convenience check for arrays.
         if (\is_array($value) && !isset($options['flags'])) {
-            $options['flags'] = \FILTER_REQUIRE_ARRAY;
+            $options['flags'] = FILTER_REQUIRE_ARRAY;
         }
 
         return filter_var($value, $filter, $options);
@@ -210,7 +217,6 @@ class ParameterBag implements \IteratorAggregate, \Countable
      *
      * @return \ArrayIterator An \ArrayIterator instance
      */
-    #[\ReturnTypeWillChange]
     public function getIterator()
     {
         return new \ArrayIterator($this->parameters);
@@ -221,7 +227,6 @@ class ParameterBag implements \IteratorAggregate, \Countable
      *
      * @return int The number of parameters
      */
-    #[\ReturnTypeWillChange]
     public function count()
     {
         return \count($this->parameters);

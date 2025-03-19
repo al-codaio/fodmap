@@ -7,53 +7,145 @@ set -eu
 
 publish=true
 
-S5CMD_OPTIONS=(${S5CMD_NO_SIGN_REQUEST:+--no-sign-request} ${S5CMD_PROFILE:+--profile "${S5CMD_PROFILE}"} --log error)
+# process flags
+optstring=":-:"
+while getopts "$optstring" opt; do
+	case $opt in
+		-)
+			case "$OPTARG" in
+				no-publish)
+					publish=false
+					;;
+				*)
+					echo "Invalid option: --$OPTARG" >&2
+					exit 2
+					;;
+			esac
+	esac
+done
+# clear processed arguments
+shift $((OPTIND-1))
 
 if [[ $# -lt "1" ]]; then
 	cat >&2 <<-EOF
-		Usage: $(basename "$0") MANIFEST...
-		  MANIFEST: name of manifest, e.g. 'ext-event-2.0.0_php-7.4'
-		  
-		  Wildcard expansion for MANIFEST will be performed by s5cmd and can be combined
-		  with shell brace expansion to match many formulae, for example:
-		  $(basename "$0") php-8.1.{8..16} ext-{redis-4,newrelic-9}.*_php-7.*
-		  
-		  Bucket name and prefix will be read from '\$S3_BUCKET' and '\$S3_PREFIX'.
-		  Bucket region (e.g. 'us-east-1') will be read from '\$S3_REGION', or detected
-			automatically if not set.
+		Usage: $(basename $0) [--no-publish] MANIFEST...
+		  MANIFEST: name of manifest file, e.g. 'ext-event-2.0.0_php-5.6.composer.json'
+		  If --no-publish is given, mkrepo.sh will NOT be invoked after removal to
+		  re-generate the repo.
+		  CAUTION: re-generating the repo will cause all manifests in the bucket
+		  to be included in the repo, including potentially currently unpublished ones.
+		  CAUTION: using --no-publish means the repo will point to non-existing packages
+		  until 'mkrepo.sh --upload' is run!
+		 Bucket name and prefix will be read from '\$S3_BUCKET' and '\$S3_PREFIX'.
 	EOF
 	exit 2
 fi
 
 S3_PREFIX=${S3_PREFIX:-}
-# grep out the region (it's there even on 403 responses), and trim whitespace via xargs - important to use grep -o and discard trailing whitespace, otherwise we'll end up with a carriage return at the end of the value
-S3_REGION=${S3_REGION:-$(set -o pipefail; curl -sI "https://${S3_BUCKET}.s3.amazonaws.com/" | grep -E -o -i "^x-amz-bucket-region:\s*\S+" | cut -d: -f2 | xargs || { echo >&2 "Failed to determine region for S3 bucket '$S3_BUCKET'"; exit 1; })}
 
-here=$(cd "$(dirname "$0")"; pwd)
+here=$(cd $(dirname $0); pwd)
 
-excludes=()
-# iterate over args and normalize the optional .composer.json suffix
-# we produce a list of '--exclude' options we feed to ‘s5cmd cp'
-# any wildcards will be handled by s5cmd
-for arg in "$@"; do
-	manifest="${arg%.composer.json}.composer.json"
-	excludes+=("--exclude" "${manifest}")
+manifests=("$@")
+
+indices="${!manifests[@]}"
+for index in $indices; do
+	manifests[$index]="s3://${S3_BUCKET}/${S3_PREFIX}${manifests[$index]%.composer.json}.composer.json"
 done
 
 manifests_tmp=$(mktemp -d -t "dst-repo.XXXXX")
-here=$(cd "$(dirname "$0")"; pwd)
+trap 'rm -rf $manifests_tmp;' EXIT
+echo "-----> Fetching manifests..." >&2
+(
+	cd $manifests_tmp
+	s3cmd --ssl get "${manifests[@]}" 1>&2
+)
 
-# clean up at the end
-trap 'popd > /dev/null; rm -rf "$manifests_tmp";' EXIT
-# cd to tmp dir (without printing the dir stack)
-pushd "$manifests_tmp" > /dev/null
+cat >&2 <<-EOF
+	WARNING: POTENTIALLY DESTRUCTIVE ACTION!
+	
+	The following packages will be REMOVED
+	 from s3://${S3_BUCKET}/${S3_PREFIX}:
+	$(IFS=$'\n'; echo "${manifests[*]:-(none)}" | xargs -n1 basename | sed -e 's/^/  - /' -e 's/.composer.json$//')
+EOF
 
-echo "Fetching manifests, excluding given removals... " >&2
-s5cmd "${S5CMD_OPTIONS[@]}" cp ${S3_REGION:+--source-region "$S3_REGION"} "${excludes[@]}" "s3://${S3_BUCKET}/${S3_PREFIX}*.composer.json" "$manifests_tmp" || { echo -e "\nFailed to fetch manifests! See message above for errors." >&2; exit 1; }
+if $publish; then
+	cat >&2 <<-EOF
+		NOTICE: You have selected to publish the repo after removal of packages.
+		This means the repo will be re-generated based on the current bucket contents!
+	EOF
+	regenmsg="& regenerate packages.json"
+else
+	regenmsg="without updating the repo"
+	cat >&2 <<-EOF
+		WARNING: You have selected to NOT publish the repo after removal of packages.
+		This means the repo will point to non-existing packages until mkrepo.sh is run!
+	EOF
+fi
+echo "" >&2
 
-echo -e "\nNow performing a sync of the differences:\n" >&2
+read -p "Are you sure you want to remove the packages $regenmsg? [yN] " proceed
 
-# we now simply treat this as a sync of packages between two folders, passing sync.sh the local dir as source and the remote as destination
-# the "source" repository will have our matched manifests removed
+[[ ! $proceed =~ [yY](es)* ]] && exit
 
-"${here}/sync.sh" -s "$manifests_tmp" "$S3_BUCKET" "$S3_PREFIX" "$S3_REGION" "$S3_BUCKET" "$S3_PREFIX" "$S3_REGION"
+echo "" >&2
+
+remove_files=()
+for manifest in "${manifests[@]}"; do
+	echo "Removing $(basename $manifest ".composer.json"):" >&2
+	if filename=$(cat $manifests_tmp/$(basename $manifest) | python <(cat <<-'PYTHON' # beware of single quotes in body
+		import sys, json, re;
+		manifest=json.load(sys.stdin)
+		url=manifest.get("dist",{}).get("url","").partition("https://"+sys.argv[1]+"."+sys.argv[2]+".amazonaws.com/"+sys.argv[3])
+		if url[0]:
+		    # dist URL does not match https://${dst_bucket}.${dst_region}.amazonaws.com/${dst_prefix}
+		    print(url[0])
+		    sys.exit(1)
+		else:
+		    print(url[2])
+		PYTHON
+	) $S3_BUCKET ${S3_REGION:-s3} ${S3_PREFIX})
+	then
+		echo "  - queued '$filename' for removal." >&2
+		remove_files+=("$filename")
+	else
+		# the dist URL points somewhere else, so we are not touching that
+		echo "  - WARNING: not removing '$filename' (in manifest 'dist.url')!" >&2
+	fi
+	echo -n "  - removing manifest file '$(basename $manifest)'... " >&2
+	out=$(s3cmd rm ${AWS_ACCESS_KEY_ID+"--access_key=$AWS_ACCESS_KEY_ID"} ${AWS_SECRET_ACCESS_KEY+"--secret_key=$AWS_SECRET_ACCESS_KEY"} --ssl "$manifest" 2>&1) || { echo -e "failed! Error:\n$out" >&2; exit 1; }
+	rm $manifests_tmp/$(basename $manifest)
+	echo "done." >&2
+done
+
+echo "" >&2
+
+if $publish; then
+	echo -n "Generating and uploading packages.json... " >&2
+	out=$(cd $manifests_tmp; $here/mkrepo.sh --upload 2>&1) || { echo -e "failed! Error:\n$out" >&2; exit 1; }
+	cat >&2 <<-EOF
+		done!
+		$(echo "$out" | grep -E '^Public URL' | sed 's/^Public URL of the object is: http:/Public URL of the repository is: https:/')
+		
+	EOF
+fi
+
+if [[ "${#remove_files[@]}" != "0" ]]; then
+	echo "Removing files queued for deletion from bucket:" >&2
+	for filename in "${remove_files[@]}"; do
+		echo -n "  - removing '$filename'... " >&2
+		out=$(s3cmd rm ${AWS_ACCESS_KEY_ID+"--access_key=$AWS_ACCESS_KEY_ID"} ${AWS_SECRET_ACCESS_KEY+"--secret_key=$AWS_SECRET_ACCESS_KEY"} --ssl s3://${S3_BUCKET}/${S3_PREFIX}${filename} 2>&1) && echo "done." >&2 || echo -e "failed! Error:\n$out" >&2
+	done
+	echo "" >&2
+fi
+
+echo "Removal complete.
+" >&2
+
+if ! $publish; then
+	cat >&2 <<-EOF
+		WARNING: repo has not been re-generated. It may currently be in a broken state.
+		There may be packages still listed in the repo that have just been removed.
+		Run 'mkrepo.sh --upload' at once to return repository into a consistent state.
+		
+	EOF
+fi

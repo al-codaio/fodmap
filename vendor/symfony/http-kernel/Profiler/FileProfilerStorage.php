@@ -34,7 +34,7 @@ class FileProfilerStorage implements ProfilerStorageInterface
      */
     public function __construct(string $dsn)
     {
-        if (!str_starts_with($dsn, 'file:')) {
+        if (0 !== strpos($dsn, 'file:')) {
             throw new \RuntimeException(sprintf('Please check your configuration. You are trying to use FileStorage with an invalid dsn "%s". The expected format is "file:/path/to/the/storage/folder".', $dsn));
         }
         $this->folder = substr($dsn, 5);
@@ -47,7 +47,7 @@ class FileProfilerStorage implements ProfilerStorageInterface
     /**
      * {@inheritdoc}
      */
-    public function find($ip, $url, $limit, $method, $start = null, $end = null, $statusCode = null): array
+    public function find($ip, $url, $limit, $method, $start = null, $end = null, $statusCode = null)
     {
         $file = $this->getIndexFilename();
 
@@ -56,15 +56,15 @@ class FileProfilerStorage implements ProfilerStorageInterface
         }
 
         $file = fopen($file, 'r');
-        fseek($file, 0, \SEEK_END);
+        fseek($file, 0, SEEK_END);
 
         $result = [];
         while (\count($result) < $limit && $line = $this->readLineFromFile($file)) {
             $values = str_getcsv($line);
-            [$csvToken, $csvIp, $csvMethod, $csvUrl, $csvTime, $csvParent, $csvStatusCode] = $values;
+            list($csvToken, $csvIp, $csvMethod, $csvUrl, $csvTime, $csvParent, $csvStatusCode) = $values;
             $csvTime = (int) $csvTime;
 
-            if ($ip && !str_contains($csvIp, $ip) || $url && !str_contains($csvUrl, $url) || $method && !str_contains($csvMethod, $method) || $statusCode && !str_contains($csvStatusCode, $statusCode)) {
+            if ($ip && false === strpos($csvIp, $ip) || $url && false === strpos($csvUrl, $url) || $method && false === strpos($csvMethod, $method) || $statusCode && false === strpos($csvStatusCode, $statusCode)) {
                 continue;
             }
 
@@ -113,9 +113,13 @@ class FileProfilerStorage implements ProfilerStorageInterface
     /**
      * {@inheritdoc}
      */
-    public function read($token): ?Profile
+    public function read($token)
     {
-        return $this->doRead($token);
+        if (!$token || !file_exists($file = $this->getFilename($token))) {
+            return;
+        }
+
+        return $this->createProfileFromData($token, unserialize(file_get_contents($file)));
     }
 
     /**
@@ -123,7 +127,7 @@ class FileProfilerStorage implements ProfilerStorageInterface
      *
      * @throws \RuntimeException
      */
-    public function write(Profile $profile): bool
+    public function write(Profile $profile)
     {
         $file = $this->getFilename($profile->getToken());
 
@@ -157,13 +161,7 @@ class FileProfilerStorage implements ProfilerStorageInterface
             'status_code' => $profile->getStatusCode(),
         ];
 
-        $data = serialize($data);
-
-        if (\function_exists('gzencode')) {
-            $data = gzencode($data, 3);
-        }
-
-        if (false === file_put_contents($file, $data, \LOCK_EX)) {
+        if (false === file_put_contents($file, serialize($data))) {
             return false;
         }
 
@@ -229,7 +227,7 @@ class FileProfilerStorage implements ProfilerStorageInterface
         $position = ftell($file);
 
         if (0 === $position) {
-            return null;
+            return;
         }
 
         while (true) {
@@ -251,7 +249,7 @@ class FileProfilerStorage implements ProfilerStorageInterface
 
             $position += $upTo;
             $line = substr($buffer, $upTo + 1).$line;
-            fseek($file, max(0, $position), \SEEK_SET);
+            fseek($file, max(0, $position), SEEK_SET);
 
             if ('' !== $line) {
                 break;
@@ -280,34 +278,13 @@ class FileProfilerStorage implements ProfilerStorageInterface
         }
 
         foreach ($data['children'] as $token) {
-            if (null !== $childProfile = $this->doRead($token, $profile)) {
-                $profile->addChild($childProfile);
+            if (!$token || !file_exists($file = $this->getFilename($token))) {
+                continue;
             }
+
+            $profile->addChild($this->createProfileFromData($token, unserialize(file_get_contents($file)), $profile));
         }
 
         return $profile;
-    }
-
-    private function doRead($token, Profile $profile = null): ?Profile
-    {
-        if (!$token || !file_exists($file = $this->getFilename($token))) {
-            return null;
-        }
-
-        $h = fopen($file, 'r');
-        flock($h, \LOCK_SH);
-        $data = stream_get_contents($h);
-        flock($h, \LOCK_UN);
-        fclose($h);
-
-        if (\function_exists('gzdecode')) {
-            $data = @gzdecode($data) ?: $data;
-        }
-
-        if (!$data = unserialize($data)) {
-            return null;
-        }
-
-        return $this->createProfileFromData($token, $data, $profile);
     }
 }

@@ -79,26 +79,26 @@ class UriSigner
         $hash = $params[$this->parameter];
         unset($params[$this->parameter]);
 
-        return hash_equals($this->computeHash($this->buildUrl($url, $params)), $hash);
+        return $this->computeHash($this->buildUrl($url, $params)) === $hash;
     }
 
-    private function computeHash(string $uri): string
+    private function computeHash($uri)
     {
         return base64_encode(hash_hmac('sha256', $uri, $this->secret, true));
     }
 
-    private function buildUrl(array $url, array $params = []): string
+    private function buildUrl(array $url, array $params = [])
     {
-        ksort($params, \SORT_STRING);
+        ksort($params, SORT_STRING);
         $url['query'] = http_build_query($params, '', '&');
 
         $scheme = isset($url['scheme']) ? $url['scheme'].'://' : '';
-        $host = $url['host'] ?? '';
+        $host = isset($url['host']) ? $url['host'] : '';
         $port = isset($url['port']) ? ':'.$url['port'] : '';
-        $user = $url['user'] ?? '';
+        $user = isset($url['user']) ? $url['user'] : '';
         $pass = isset($url['pass']) ? ':'.$url['pass'] : '';
         $pass = ($user || $pass) ? "$pass@" : '';
-        $path = $url['path'] ?? '';
+        $path = isset($url['path']) ? $url['path'] : '';
         $query = isset($url['query']) && $url['query'] ? '?'.$url['query'] : '';
         $fragment = isset($url['fragment']) ? '#'.$url['fragment'] : '';
 

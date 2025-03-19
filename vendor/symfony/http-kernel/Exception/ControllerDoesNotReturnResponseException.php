@@ -38,7 +38,7 @@ class ControllerDoesNotReturnResponseException extends \LogicException
 
     private function parseControllerDefinition(callable $controller): ?array
     {
-        if (\is_string($controller) && str_contains($controller, '::')) {
+        if (\is_string($controller) && false !== strpos($controller, '::')) {
             $controller = explode('::', $controller);
         }
 
@@ -67,15 +67,9 @@ class ControllerDoesNotReturnResponseException extends \LogicException
         if (\is_object($controller)) {
             $r = new \ReflectionClass($controller);
 
-            try {
-                $line = $r->getMethod('__invoke')->getEndLine();
-            } catch (\ReflectionException $e) {
-                $line = $r->getEndLine();
-            }
-
             return [
                 'file' => $r->getFileName(),
-                'line' => $line,
+                'line' => $r->getEndLine(),
             ];
         }
 

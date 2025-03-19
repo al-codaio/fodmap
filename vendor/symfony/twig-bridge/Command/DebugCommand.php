@@ -12,7 +12,6 @@
 namespace Symfony\Bridge\Twig\Command;
 
 use Symfony\Component\Console\Command\Command;
-use Symfony\Component\Console\Formatter\OutputFormatter;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
@@ -40,7 +39,7 @@ class DebugCommand extends Command
     public function __construct($twig = null, $projectDir = null)
     {
         if (!$twig instanceof Environment) {
-            @trigger_error(sprintf('Passing a command name as the first argument of "%s()" is deprecated since Symfony 3.4 and support for it will be removed in 4.0. If the command was registered by convention, make it a service instead.', __METHOD__), \E_USER_DEPRECATED);
+            @trigger_error(sprintf('Passing a command name as the first argument of "%s()" is deprecated since Symfony 3.4 and support for it will be removed in 4.0. If the command was registered by convention, make it a service instead.', __METHOD__), E_USER_DEPRECATED);
 
             parent::__construct($twig);
 
@@ -55,7 +54,7 @@ class DebugCommand extends Command
 
     public function setTwigEnvironment(Environment $twig)
     {
-        @trigger_error(sprintf('The "%s()" method is deprecated since Symfony 3.4 and will be removed in 4.0.', __METHOD__), \E_USER_DEPRECATED);
+        @trigger_error(sprintf('The "%s()" method is deprecated since Symfony 3.4 and will be removed in 4.0.', __METHOD__), E_USER_DEPRECATED);
 
         $this->twig = $twig;
     }
@@ -65,7 +64,7 @@ class DebugCommand extends Command
      */
     protected function getTwigEnvironment()
     {
-        @trigger_error(sprintf('The "%s()" method is deprecated since Symfony 3.4 and will be removed in 4.0.', __METHOD__), \E_USER_DEPRECATED);
+        @trigger_error(sprintf('The "%s()" method is deprecated since Symfony 3.4 and will be removed in 4.0.', __METHOD__), E_USER_DEPRECATED);
 
         return $this->twig;
     }
@@ -101,13 +100,12 @@ EOF
     protected function execute(InputInterface $input, OutputInterface $output)
     {
         $io = new SymfonyStyle($input, $output);
-        $decorated = $io->isDecorated();
 
         // BC to be removed in 4.0
-        if (__CLASS__ !== static::class) {
+        if (__CLASS__ !== \get_class($this)) {
             $r = new \ReflectionMethod($this, 'getTwigEnvironment');
             if (__CLASS__ !== $r->getDeclaringClass()->getName()) {
-                @trigger_error(sprintf('Usage of method "%s" is deprecated since Symfony 3.4 and will no longer be supported in 4.0. Construct the command with its required arguments instead.', static::class.'::getTwigEnvironment'), \E_USER_DEPRECATED);
+                @trigger_error(sprintf('Usage of method "%s" is deprecated since Symfony 3.4 and will no longer be supported in 4.0. Construct the command with its required arguments instead.', \get_class($this).'::getTwigEnvironment'), E_USER_DEPRECATED);
 
                 $this->twig = $this->getTwigEnvironment();
             }
@@ -116,35 +114,29 @@ EOF
             throw new \RuntimeException('The Twig environment needs to be set.');
         }
 
-        $filter = $input->getArgument('filter');
         $types = ['functions', 'filters', 'tests', 'globals'];
 
         if ('json' === $input->getOption('format')) {
             $data = [];
             foreach ($types as $type) {
                 foreach ($this->twig->{'get'.ucfirst($type)}() as $name => $entity) {
-                    if (!$filter || false !== strpos($name, $filter)) {
-                        $data[$type][$name] = $this->getMetadata($type, $entity);
-                    }
+                    $data[$type][$name] = $this->getMetadata($type, $entity);
                 }
             }
-
-            if (isset($data['tests'])) {
-                $data['tests'] = array_keys($data['tests']);
-            }
-
+            $data['tests'] = array_keys($data['tests']);
             $data['loader_paths'] = $this->getLoaderPaths();
-            $data = json_encode($data, \JSON_PRETTY_PRINT);
-            $io->writeln($decorated ? OutputFormatter::escape($data) : $data);
+            $io->writeln(json_encode($data));
 
             return 0;
         }
+
+        $filter = $input->getArgument('filter');
 
         foreach ($types as $index => $type) {
             $items = [];
             foreach ($this->twig->{'get'.ucfirst($type)}() as $name => $entity) {
                 if (!$filter || false !== strpos($name, $filter)) {
-                    $items[$name] = $name.$this->getPrettyMetadata($type, $entity, $decorated);
+                    $items[$name] = $name.$this->getPrettyMetadata($type, $entity);
                 }
             }
 
@@ -220,16 +212,16 @@ EOF
             return $entity;
         }
         if ('tests' === $type) {
-            return null;
+            return;
         }
         if ('functions' === $type || 'filters' === $type) {
             $cb = $entity->getCallable();
             if (null === $cb) {
-                return null;
+                return;
             }
             if (\is_array($cb)) {
                 if (!method_exists($cb[0], $cb[1])) {
-                    return null;
+                    return;
                 }
                 $refl = new \ReflectionMethod($cb[0], $cb[1]);
             } elseif (\is_object($cb) && method_exists($cb, '__invoke')) {
@@ -239,7 +231,7 @@ EOF
             } elseif (\is_string($cb) && preg_match('{^(.+)::(.+)$}', $cb, $m) && method_exists($m[1], $m[2])) {
                 $refl = new \ReflectionMethod($m[1], $m[2]);
             } else {
-                throw new \UnexpectedValueException('Unsupported callback type.');
+                throw new \UnexpectedValueException('Unsupported callback type');
             }
 
             $args = $refl->getParameters();
@@ -268,11 +260,9 @@ EOF
 
             return $args;
         }
-
-        return null;
     }
 
-    private function getPrettyMetadata($type, $entity, $decorated)
+    private function getPrettyMetadata($type, $entity)
     {
         if ('tests' === $type) {
             return '';
@@ -284,7 +274,7 @@ EOF
                 return '(unknown?)';
             }
         } catch (\UnexpectedValueException $e) {
-            return sprintf(' <error>%s</error>', $decorated ? OutputFormatter::escape($e->getMessage()) : $e->getMessage());
+            return ' <error>'.$e->getMessage().'</error>';
         }
 
         if ('globals' === $type) {
@@ -292,9 +282,7 @@ EOF
                 return ' = object('.\get_class($meta).')';
             }
 
-            $description = substr(@json_encode($meta), 0, 50);
-
-            return sprintf(' = %s', $decorated ? OutputFormatter::escape($description) : $description);
+            return ' = '.substr(@json_encode($meta), 0, 50);
         }
 
         if ('functions' === $type) {
@@ -304,7 +292,5 @@ EOF
         if ('filters' === $type) {
             return $meta ? '('.implode(', ', $meta).')' : '';
         }
-
-        return null;
     }
 }

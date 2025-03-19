@@ -20,14 +20,14 @@ use Twig\Compiler;
  */
 class WithNode extends Node
 {
-    public function __construct(Node $body, ?Node $variables, bool $only, int $lineno, string $tag = null)
+    public function __construct(Node $body, Node $variables = null, $only = false, $lineno, $tag = null)
     {
         $nodes = ['body' => $body];
         if (null !== $variables) {
             $nodes['variables'] = $variables;
         }
 
-        parent::__construct($nodes, ['only' => $only], $lineno, $tag);
+        parent::__construct($nodes, ['only' => (bool) $only], $lineno, $tag);
     }
 
     public function compile(Compiler $compiler)
@@ -35,20 +35,18 @@ class WithNode extends Node
         $compiler->addDebugInfo($this);
 
         if ($this->hasNode('variables')) {
-            $node = $this->getNode('variables');
             $varsName = $compiler->getVarName();
             $compiler
                 ->write(sprintf('$%s = ', $varsName))
-                ->subcompile($node)
+                ->subcompile($this->getNode('variables'))
                 ->raw(";\n")
-                ->write(sprintf("if (!twig_test_iterable(\$%s)) {\n", $varsName))
+                ->write(sprintf("if (!is_array(\$%s)) {\n", $varsName))
                 ->indent()
                 ->write("throw new RuntimeError('Variables passed to the \"with\" tag must be a hash.', ")
-                ->repr($node->getTemplateLine())
-                ->raw(", \$this->getSourceContext());\n")
+                ->repr($this->getTemplateLine())
+                ->raw(", \$this->source);\n")
                 ->outdent()
                 ->write("}\n")
-                ->write(sprintf("\$%s = twig_to_array(\$%s);\n", $varsName, $varsName))
             ;
 
             if ($this->getAttribute('only')) {
@@ -57,7 +55,7 @@ class WithNode extends Node
                 $compiler->write("\$context['_parent'] = \$context;\n");
             }
 
-            $compiler->write(sprintf("\$context = \$this->env->mergeGlobals(array_merge(\$context, \$%s));\n", $varsName));
+            $compiler->write(sprintf("\$context = array_merge(\$context, \$%s);\n", $varsName));
         } else {
             $compiler->write("\$context['_parent'] = \$context;\n");
         }

@@ -4,7 +4,7 @@
     "monolog/monolog": "^1.22",
     "twig/twig": "^2.0",
     "symfony/twig-bridge": "^3",
-    "danielstieber/coda-php": "^0.1.0"
+    "danielstieber/coda-php": "^0.0.2"
   },
   "require-dev": {
     "heroku/heroku-buildpack-php": "*"

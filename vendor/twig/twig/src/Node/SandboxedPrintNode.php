@@ -43,9 +43,7 @@ class SandboxedPrintNode extends PrintNode
             $compiler
                 ->write('$this->extensions[SandboxExtension::class]->ensureToStringAllowed(')
                 ->subcompile($expr)
-                ->raw(', ')
-                ->repr($expr->getTemplateLine())
-                ->raw(", \$this->source);\n")
+                ->raw(");\n")
             ;
         }
     }

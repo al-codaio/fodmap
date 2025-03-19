@@ -67,7 +67,14 @@ final class ExtensionSet
         }
     }
 
-    public function hasExtension(string $class): bool
+    /**
+     * Returns true if the given extension is registered.
+     *
+     * @param string $class The extension class name
+     *
+     * @return bool Whether the extension is registered or not
+     */
+    public function hasExtension($class)
     {
         $class = ltrim($class, '\\');
         if (!isset($this->extensions[$class]) && class_exists($class, false)) {
@@ -78,7 +85,14 @@ final class ExtensionSet
         return isset($this->extensions[$class]);
     }
 
-    public function getExtension(string $class): ExtensionInterface
+    /**
+     * Gets an extension by class name.
+     *
+     * @param string $class The extension class name
+     *
+     * @return ExtensionInterface
+     */
+    public function getExtension($class)
     {
         $class = ltrim($class, '\\');
         if (!isset($this->extensions[$class]) && class_exists($class, false)) {
@@ -94,7 +108,9 @@ final class ExtensionSet
     }
 
     /**
-     * @param ExtensionInterface[] $extensions
+     * Registers an array of extensions.
+     *
+     * @param array $extensions An array of extensions
      */
     public function setExtensions(array $extensions)
     {
@@ -104,24 +120,26 @@ final class ExtensionSet
     }
 
     /**
-     * @return ExtensionInterface[]
+     * Returns all registered extensions.
+     *
+     * @return array An array of extensions
      */
-    public function getExtensions(): array
+    public function getExtensions()
     {
         return $this->extensions;
     }
 
-    public function getSignature(): string
+    public function getSignature()
     {
         return json_encode(array_keys($this->extensions));
     }
 
-    public function isInitialized(): bool
+    public function isInitialized()
     {
         return $this->initialized || $this->runtimeInitialized;
     }
 
-    public function getLastModified(): int
+    public function getLastModified()
     {
         if (0 !== $this->lastModified) {
             return $this->lastModified;
@@ -149,6 +167,8 @@ final class ExtensionSet
             throw new \LogicException(sprintf('Unable to register extension "%s" as it is already registered.', $class));
         }
 
+        // For BC/FC with namespaced aliases
+        $class = (new \ReflectionClass($class))->name;
         $this->extensions[$class] = $extension;
     }
 
@@ -161,10 +181,7 @@ final class ExtensionSet
         $this->staging->addFunction($function);
     }
 
-    /**
-     * @return TwigFunction[]
-     */
-    public function getFunctions(): array
+    public function getFunctions()
     {
         if (!$this->initialized) {
             $this->initExtensions();
@@ -174,9 +191,13 @@ final class ExtensionSet
     }
 
     /**
+     * Get a function by name.
+     *
+     * @param string $name function name
+     *
      * @return TwigFunction|false
      */
-    public function getFunction(string $name)
+    public function getFunction($name)
     {
         if (!$this->initialized) {
             $this->initExtensions();
@@ -220,10 +241,7 @@ final class ExtensionSet
         $this->staging->addFilter($filter);
     }
 
-    /**
-     * @return TwigFilter[]
-     */
-    public function getFilters(): array
+    public function getFilters()
     {
         if (!$this->initialized) {
             $this->initExtensions();
@@ -233,9 +251,16 @@ final class ExtensionSet
     }
 
     /**
+     * Get a filter by name.
+     *
+     * Subclasses may override this method and load filters differently;
+     * so no list of filters is available.
+     *
+     * @param string $name The filter name
+     *
      * @return TwigFilter|false
      */
-    public function getFilter(string $name)
+    public function getFilter($name)
     {
         if (!$this->initialized) {
             $this->initExtensions();
@@ -279,10 +304,7 @@ final class ExtensionSet
         $this->staging->addNodeVisitor($visitor);
     }
 
-    /**
-     * @return NodeVisitorInterface[]
-     */
-    public function getNodeVisitors(): array
+    public function getNodeVisitors()
     {
         if (!$this->initialized) {
             $this->initExtensions();
@@ -300,10 +322,7 @@ final class ExtensionSet
         $this->staging->addTokenParser($parser);
     }
 
-    /**
-     * @return TokenParserInterface[]
-     */
-    public function getTokenParsers(): array
+    public function getTokenParsers()
     {
         if (!$this->initialized) {
             $this->initExtensions();
@@ -312,7 +331,7 @@ final class ExtensionSet
         return $this->parsers;
     }
 
-    public function getGlobals(): array
+    public function getGlobals()
     {
         if (null !== $this->globals) {
             return $this->globals;
@@ -348,10 +367,7 @@ final class ExtensionSet
         $this->staging->addTest($test);
     }
 
-    /**
-     * @return TwigTest[]
-     */
-    public function getTests(): array
+    public function getTests()
     {
         if (!$this->initialized) {
             $this->initExtensions();
@@ -361,9 +377,13 @@ final class ExtensionSet
     }
 
     /**
+     * Gets a test by name.
+     *
+     * @param string $name The test name
+     *
      * @return TwigTest|false
      */
-    public function getTest(string $name)
+    public function getTest($name)
     {
         if (!$this->initialized) {
             $this->initExtensions();
@@ -389,7 +409,12 @@ final class ExtensionSet
         return false;
     }
 
-    public function getUnaryOperators(): array
+    /**
+     * Gets the registered unary Operators.
+     *
+     * @return array An array of unary operators
+     */
+    public function getUnaryOperators()
     {
         if (!$this->initialized) {
             $this->initExtensions();
@@ -398,7 +423,12 @@ final class ExtensionSet
         return $this->unaryOperators;
     }
 
-    public function getBinaryOperators(): array
+    /**
+     * Gets the registered binary Operators.
+     *
+     * @return array An array of binary operators
+     */
+    public function getBinaryOperators()
     {
         if (!$this->initialized) {
             $this->initExtensions();

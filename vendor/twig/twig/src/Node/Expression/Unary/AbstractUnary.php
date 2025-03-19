@@ -18,7 +18,7 @@ use Twig\Node\Node;
 
 abstract class AbstractUnary extends AbstractExpression
 {
-    public function __construct(Node $node, int $lineno)
+    public function __construct(Node $node, $lineno)
     {
         parent::__construct(['node' => $node], [], $lineno);
     }

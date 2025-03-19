@@ -56,13 +56,13 @@ class Parser
 
     public function getVarName()
     {
-        return sprintf('__internal_parse_%d', $this->varNameSalt++);
+        return sprintf('__internal_%s', hash('sha256', __METHOD__.$this->stream->getSourceContext()->getCode().$this->varNameSalt++));
     }
 
     public function parse(TokenStream $stream, $test = null, $dropNeedle = false)
     {
         $vars = get_object_vars($this);
-        unset($vars['stack'], $vars['env'], $vars['handlers'], $vars['visitors'], $vars['expressionParser'], $vars['reservedMacroNames'], $vars['varNameSalt']);
+        unset($vars['stack'], $vars['env'], $vars['handlers'], $vars['visitors'], $vars['expressionParser'], $vars['reservedMacroNames']);
         $this->stack[] = $vars;
 
         // tag handlers
@@ -92,6 +92,7 @@ class Parser
         $this->blockStack = [];
         $this->importedSymbols = [[]];
         $this->embeddedTemplates = [];
+        $this->varNameSalt = 0;
 
         try {
             $body = $this->subparse($test, $dropNeedle);
@@ -206,7 +207,7 @@ class Parser
 
     public function peekBlockStack()
     {
-        return isset($this->blockStack[\count($this->blockStack) - 1]) ? $this->blockStack[\count($this->blockStack) - 1] : null;
+        return $this->blockStack[\count($this->blockStack) - 1];
     }
 
     public function popBlockStack()
@@ -249,7 +250,7 @@ class Parser
      */
     public function isReservedMacroName($name)
     {
-        @trigger_error(sprintf('The "%s" method is deprecated since Twig 2.7 and will be removed in 3.0.', __METHOD__), \E_USER_DEPRECATED);
+        @trigger_error(sprintf('The "%s" method is deprecated since Twig 2.7 and will be removed in 3.0.', __METHOD__), E_USER_DEPRECATED);
 
         return false;
     }
@@ -278,8 +279,11 @@ class Parser
 
     public function getImportedSymbol($type, $alias)
     {
-        // if the symbol does not exist in the current scope (0), try in the main/global scope (last index)
-        return $this->importedSymbols[0][$type][$alias] ?? ($this->importedSymbols[\count($this->importedSymbols) - 1][$type][$alias] ?? null);
+        foreach ($this->importedSymbols as $functions) {
+            if (isset($functions[$type][$alias])) {
+                return $functions[$type][$alias];
+            }
+        }
     }
 
     public function isMainScope()
@@ -331,7 +335,7 @@ class Parser
         return $this->stream->getCurrent();
     }
 
-    private function filterBodyNodes(Node $node, bool $nested = false)
+    private function filterBodyNodes(Node $node, $nested = false)
     {
         // check that the body does not contain non-empty output nodes
         if (
@@ -359,7 +363,7 @@ class Parser
 
         // to be removed completely in Twig 3.0
         if (!$nested && $node instanceof SpacelessNode) {
-            @trigger_error(sprintf('Using the spaceless tag at the root level of a child template in "%s" at line %d is deprecated since Twig 2.5.0 and will become a syntax error in 3.0.', $this->stream->getSourceContext()->getName(), $node->getTemplateLine()), \E_USER_DEPRECATED);
+            @trigger_error(sprintf('Using the spaceless tag at the root level of a child template in "%s" at line %d is deprecated since Twig 2.5.0 and will become a syntax error in 3.0.', $this->stream->getSourceContext()->getName(), $node->getTemplateLine()), E_USER_DEPRECATED);
         }
 
         // "block" tags that are not captured (see above) are only used for defining
@@ -367,7 +371,7 @@ class Parser
         // expected as the definition is not part of the default template code flow.
         if ($nested && ($node instanceof BlockReferenceNode || $node instanceof \Twig_Node_BlockReference)) {
             //throw new SyntaxError('A block definition cannot be nested under non-capturing nodes.', $node->getTemplateLine(), $this->stream->getSourceContext());
-            @trigger_error(sprintf('Nesting a block definition under a non-capturing node in "%s" at line %d is deprecated since Twig 2.5.0 and will become a syntax error in 3.0.', $this->stream->getSourceContext()->getName(), $node->getTemplateLine()), \E_USER_DEPRECATED);
+            @trigger_error(sprintf('Nesting a block definition under a non-capturing node in "%s" at line %d is deprecated since Twig 2.5.0 and will become a syntax error in 3.0.', $this->stream->getSourceContext()->getName(), $node->getTemplateLine()), E_USER_DEPRECATED);
 
             return;
         }

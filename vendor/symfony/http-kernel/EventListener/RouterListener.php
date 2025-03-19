@@ -37,8 +37,6 @@ use Symfony\Component\Routing\RequestContextAwareInterface;
  *
  * @author Fabien Potencier <fabien@symfony.com>
  * @author Yonel Ceruto <yonelceruto@gmail.com>
- *
- * @final since Symfony 4.3
  */
 class RouterListener implements EventSubscriberInterface
 {
@@ -50,9 +48,12 @@ class RouterListener implements EventSubscriberInterface
     private $debug;
 
     /**
-     * @param UrlMatcherInterface|RequestMatcherInterface $matcher    The Url or Request matcher
-     * @param RequestContext|null                         $context    The RequestContext (can be null when $matcher implements RequestContextAwareInterface)
+     * @param UrlMatcherInterface|RequestMatcherInterface $matcher      The Url or Request matcher
+     * @param RequestStack                                $requestStack A RequestStack instance
+     * @param RequestContext|null                         $context      The RequestContext (can be null when $matcher implements RequestContextAwareInterface)
+     * @param LoggerInterface|null                        $logger       The logger
      * @param string                                      $projectDir
+     * @param bool                                        $debug
      *
      * @throws \InvalidArgumentException
      */
@@ -88,6 +89,8 @@ class RouterListener implements EventSubscriberInterface
     /**
      * After a sub-request is done, we need to reset the routing context to the parent request so that the URL generator
      * operates on the correct context again.
+     *
+     * @param FinishRequestEvent $event
      */
     public function onKernelFinishRequest(FinishRequestEvent $event)
     {
@@ -116,7 +119,7 @@ class RouterListener implements EventSubscriberInterface
 
             if (null !== $this->logger) {
                 $this->logger->info('Matched route "{route}".', [
-                    'route' => $parameters['_route'] ?? 'n/a',
+                    'route' => isset($parameters['_route']) ? $parameters['_route'] : 'n/a',
                     'route_parameters' => $parameters,
                     'request_uri' => $request->getUri(),
                     'method' => $request->getMethod(),
@@ -143,7 +146,7 @@ class RouterListener implements EventSubscriberInterface
 
     public function onKernelException(GetResponseForExceptionEvent $event)
     {
-        if (!$this->debug || !($e = $event->getThrowable()) instanceof NotFoundHttpException) {
+        if (!$this->debug || !($e = $event->getException()) instanceof NotFoundHttpException) {
             return;
         }
 
@@ -161,14 +164,14 @@ class RouterListener implements EventSubscriberInterface
         ];
     }
 
-    private function createWelcomeResponse(): Response
+    private function createWelcomeResponse()
     {
         $version = Kernel::VERSION;
-        $projectDir = realpath((string) $this->projectDir).\DIRECTORY_SEPARATOR;
+        $baseDir = realpath($this->projectDir).\DIRECTORY_SEPARATOR;
         $docVersion = substr(Kernel::VERSION, 0, 3);
 
         ob_start();
-        include \dirname(__DIR__).'/Resources/welcome.html.php';
+        include __DIR__.'/../Resources/welcome.html.php';
 
         return new Response(ob_get_clean(), Response::HTTP_NOT_FOUND);
     }

@@ -21,7 +21,7 @@ use Twig\Node\Node;
  */
 class EnterProfileNode extends Node
 {
-    public function __construct(string $extensionName, string $type, string $name, string $varName)
+    public function __construct($extensionName, $type, $name, $varName)
     {
         parent::__construct([], ['extension_name' => $extensionName, 'name' => $name, 'type' => $type, 'var_name' => $varName]);
     }

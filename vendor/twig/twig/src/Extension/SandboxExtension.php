@@ -12,11 +12,7 @@
 namespace Twig\Extension;
 
 use Twig\NodeVisitor\SandboxNodeVisitor;
-use Twig\Sandbox\SecurityNotAllowedMethodError;
-use Twig\Sandbox\SecurityNotAllowedPropertyError;
 use Twig\Sandbox\SecurityPolicyInterface;
-use Twig\Sandbox\SourcePolicyInterface;
-use Twig\Source;
 use Twig\TokenParser\SandboxTokenParser;
 
 final class SandboxExtension extends AbstractExtension
@@ -24,13 +20,11 @@ final class SandboxExtension extends AbstractExtension
     private $sandboxedGlobally;
     private $sandboxed;
     private $policy;
-    private $sourcePolicy;
 
-    public function __construct(SecurityPolicyInterface $policy, $sandboxed = false, SourcePolicyInterface $sourcePolicy = null)
+    public function __construct(SecurityPolicyInterface $policy, $sandboxed = false)
     {
         $this->policy = $policy;
         $this->sandboxedGlobally = $sandboxed;
-        $this->sourcePolicy = $sourcePolicy;
     }
 
     public function getTokenParsers()
@@ -53,23 +47,14 @@ final class SandboxExtension extends AbstractExtension
         $this->sandboxed = false;
     }
 
-    public function isSandboxed(Source $source = null)
+    public function isSandboxed()
     {
-        return $this->sandboxedGlobally || $this->sandboxed || $this->isSourceSandboxed($source);
+        return $this->sandboxedGlobally || $this->sandboxed;
     }
 
     public function isSandboxedGlobally()
     {
         return $this->sandboxedGlobally;
-    }
-
-    private function isSourceSandboxed(?Source $source): bool
-    {
-        if (null === $source || null === $this->sourcePolicy) {
-            return false;
-        }
-
-        return $this->sourcePolicy->enableSandbox($source);
     }
 
     public function setSecurityPolicy(SecurityPolicyInterface $policy)
@@ -82,52 +67,31 @@ final class SandboxExtension extends AbstractExtension
         return $this->policy;
     }
 
-    public function checkSecurity($tags, $filters, $functions, Source $source = null)
+    public function checkSecurity($tags, $filters, $functions)
     {
-        if ($this->isSandboxed($source)) {
+        if ($this->isSandboxed()) {
             $this->policy->checkSecurity($tags, $filters, $functions);
         }
     }
 
-    public function checkMethodAllowed($obj, $method, int $lineno = -1, Source $source = null)
+    public function checkMethodAllowed($obj, $method)
     {
-        if ($this->isSandboxed($source)) {
-            try {
-                $this->policy->checkMethodAllowed($obj, $method);
-            } catch (SecurityNotAllowedMethodError $e) {
-                $e->setSourceContext($source);
-                $e->setTemplateLine($lineno);
-
-                throw $e;
-            }
+        if ($this->isSandboxed()) {
+            $this->policy->checkMethodAllowed($obj, $method);
         }
     }
 
-    public function checkPropertyAllowed($obj, $property, int $lineno = -1, Source $source = null)
+    public function checkPropertyAllowed($obj, $method)
     {
-        if ($this->isSandboxed($source)) {
-            try {
-                $this->policy->checkPropertyAllowed($obj, $property);
-            } catch (SecurityNotAllowedPropertyError $e) {
-                $e->setSourceContext($source);
-                $e->setTemplateLine($lineno);
-
-                throw $e;
-            }
+        if ($this->isSandboxed()) {
+            $this->policy->checkPropertyAllowed($obj, $method);
         }
     }
 
-    public function ensureToStringAllowed($obj, int $lineno = -1, Source $source = null)
+    public function ensureToStringAllowed($obj)
     {
-        if ($this->isSandboxed($source) && \is_object($obj) && method_exists($obj, '__toString')) {
-            try {
-                $this->policy->checkMethodAllowed($obj, '__toString');
-            } catch (SecurityNotAllowedMethodError $e) {
-                $e->setSourceContext($source);
-                $e->setTemplateLine($lineno);
-
-                throw $e;
-            }
+        if ($this->isSandboxed() && \is_object($obj) && method_exists($obj, '__toString')) {
+            $this->policy->checkMethodAllowed($obj, '__toString');
         }
 
         return $obj;

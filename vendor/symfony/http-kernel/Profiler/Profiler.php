@@ -12,7 +12,6 @@
 namespace Symfony\Component\HttpKernel\Profiler;
 
 use Psr\Log\LoggerInterface;
-use Symfony\Component\Debug\Exception\FatalThrowableError;
 use Symfony\Component\HttpFoundation\Exception\ConflictingHeadersException;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -64,12 +63,12 @@ class Profiler implements ResetInterface
     /**
      * Loads the Profile for the given Response.
      *
-     * @return Profile|null A Profile instance
+     * @return Profile|false A Profile instance
      */
     public function loadProfileFromResponse(Response $response)
     {
         if (!$token = $response->headers->get('X-Debug-Token')) {
-            return null;
+            return false;
         }
 
         return $this->loadProfile($token);
@@ -80,7 +79,7 @@ class Profiler implements ResetInterface
      *
      * @param string $token A token
      *
-     * @return Profile|null A Profile instance
+     * @return Profile A Profile instance
      */
     public function loadProfile($token)
     {
@@ -129,7 +128,7 @@ class Profiler implements ResetInterface
      *
      * @return array An array of tokens
      *
-     * @see https://php.net/datetime.formats for the supported date/time formats
+     * @see http://php.net/manual/en/datetime.formats.php for the supported date/time formats
      */
     public function find($ip, $url, $limit, $method, $start, $end, $statusCode = null)
     {
@@ -139,16 +138,12 @@ class Profiler implements ResetInterface
     /**
      * Collects data for the given Response.
      *
-     * @param \Throwable|null $exception
-     *
      * @return Profile|null A Profile instance or null if the profiler is disabled
      */
-    public function collect(Request $request, Response $response/* , \Throwable $exception = null */)
+    public function collect(Request $request, Response $response, \Exception $exception = null)
     {
-        $exception = 2 < \func_num_args() ? func_get_arg(2) : null;
-
         if (false === $this->enabled) {
-            return null;
+            return;
         }
 
         $profile = new Profile(substr(hash('sha256', uniqid(mt_rand(), true)), 0, 6));
@@ -168,14 +163,9 @@ class Profiler implements ResetInterface
 
         $response->headers->set('X-Debug-Token', $profile->getToken());
 
-        $wrappedException = null;
         foreach ($this->collectors as $collector) {
-            if (($e = $exception) instanceof \Error) {
-                $r = new \ReflectionMethod($collector, 'collect');
-                $e = 2 >= $r->getNumberOfParameters() || !($p = $r->getParameters()[2])->hasType() || \Exception::class !== $p->getType()->getName() ? $e : ($wrappedException ?? $wrappedException = new FatalThrowableError($e));
-            }
+            $collector->collect($request, $response, $exception);
 
-            $collector->collect($request, $response, $e);
             // we need to clone for sub-requests
             $profile->addCollector(clone $collector);
         }
@@ -252,16 +242,16 @@ class Profiler implements ResetInterface
         return $this->collectors[$name];
     }
 
-    private function getTimestamp(?string $value): ?int
+    private function getTimestamp($value)
     {
-        if (null === $value || '' === $value) {
-            return null;
+        if (null === $value || '' == $value) {
+            return;
         }
 
         try {
             $value = new \DateTime(is_numeric($value) ? '@'.$value : $value);
         } catch (\Exception $e) {
-            return null;
+            return;
         }
 
         return $value->getTimestamp();

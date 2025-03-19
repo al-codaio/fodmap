@@ -26,7 +26,7 @@ class DebugCommandTest extends TestCase
         $ret = $tester->execute([], ['decorated' => false]);
 
         $this->assertEquals(0, $ret, 'Returns 0 in case of success');
-        $this->assertStringContainsString('Functions', trim($tester->getDisplay()));
+        $this->assertContains('Functions', trim($tester->getDisplay()));
     }
 
     public function testLineSeparatorInLoaderPaths()
@@ -59,48 +59,10 @@ Loader Paths
 TXT;
 
         $this->assertEquals(0, $ret, 'Returns 0 in case of success');
-        $this->assertStringContainsString($loaderPaths, trim($tester->getDisplay(true)));
+        $this->assertContains($loaderPaths, trim($tester->getDisplay(true)));
     }
 
-    public function testWithGlobals()
-    {
-        $message = '<error>foo</error>';
-        $tester = $this->createCommandTester([], ['message' => $message]);
-        $tester->execute([], ['decorated' => true]);
-
-        $display = $tester->getDisplay();
-
-        $this->assertStringContainsString(json_encode($message), $display);
-    }
-
-    public function testWithGlobalsJson()
-    {
-        $globals = ['message' => '<error>foo</error>'];
-
-        $tester = $this->createCommandTester([], $globals);
-        $tester->execute(['--format' => 'json'], ['decorated' => true]);
-
-        $display = $tester->getDisplay();
-        $display = json_decode($display, true);
-
-        $this->assertSame($globals, $display['globals']);
-    }
-
-    public function testWithFilter()
-    {
-        $tester = $this->createCommandTester([]);
-        $tester->execute(['--format' => 'json'], ['decorated' => false]);
-        $display = $tester->getDisplay();
-        $display1 = json_decode($display, true);
-
-        $tester->execute(['filter' => 'date', '--format' => 'json'], ['decorated' => false]);
-        $display = $tester->getDisplay();
-        $display2 = json_decode($display, true);
-
-        $this->assertNotSame($display1, $display2);
-    }
-
-    private function createCommandTester(array $paths = [], array $globals = [])
+    private function createCommandTester(array $paths = [])
     {
         $filesystemLoader = new FilesystemLoader([], \dirname(__DIR__).'/Fixtures');
         foreach ($paths as $namespace => $relDirs) {
@@ -108,13 +70,7 @@ TXT;
                 $filesystemLoader->addPath($relDir, $namespace);
             }
         }
-
-        $environment = new Environment($filesystemLoader);
-        foreach ($globals as $name => $value) {
-            $environment->addGlobal($name, $value);
-        }
-
-        $command = new DebugCommand($environment);
+        $command = new DebugCommand(new Environment($filesystemLoader));
 
         $application = new Application();
         $application->add($command);

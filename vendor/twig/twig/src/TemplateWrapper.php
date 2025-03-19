@@ -37,8 +37,10 @@ final class TemplateWrapper
      * Renders the template.
      *
      * @param array $context An array of parameters to pass to the template
+     *
+     * @return string The rendered template
      */
-    public function render(array $context = []): string
+    public function render($context = [])
     {
         // using func_get_args() allows to not expose the blocks argument
         // as it should only be used by internal code
@@ -50,7 +52,7 @@ final class TemplateWrapper
      *
      * @param array $context An array of parameters to pass to the template
      */
-    public function display(array $context = [])
+    public function display($context = [])
     {
         // using func_get_args() allows to not expose the blocks argument
         // as it should only be used by internal code
@@ -62,8 +64,10 @@ final class TemplateWrapper
      *
      * @param string $name    The block name
      * @param array  $context An array of parameters to pass to the template
+     *
+     * @return bool
      */
-    public function hasBlock(string $name, array $context = []): bool
+    public function hasBlock($name, $context = [])
     {
         return $this->template->hasBlock($name, $context);
     }
@@ -75,7 +79,7 @@ final class TemplateWrapper
      *
      * @return string[] An array of defined template block names
      */
-    public function getBlockNames(array $context = []): array
+    public function getBlockNames($context = [])
     {
         return $this->template->getBlockNames($context);
     }
@@ -88,15 +92,11 @@ final class TemplateWrapper
      *
      * @return string The rendered block
      */
-    public function renderBlock(string $name, array $context = []): string
+    public function renderBlock($name, $context = [])
     {
         $context = $this->env->mergeGlobals($context);
         $level = ob_get_level();
-        if ($this->env->isDebug()) {
-            ob_start();
-        } else {
-            ob_start(function () { return ''; });
-        }
+        ob_start();
         try {
             $this->template->displayBlock($name, $context);
         } catch (\Throwable $e) {
@@ -116,29 +116,25 @@ final class TemplateWrapper
      * @param string $name    The block name to render
      * @param array  $context An array of parameters to pass to the template
      */
-    public function displayBlock(string $name, array $context = [])
+    public function displayBlock($name, $context = [])
     {
         $this->template->displayBlock($name, $this->env->mergeGlobals($context));
     }
 
-    public function getSourceContext(): Source
+    /**
+     * @return Source
+     */
+    public function getSourceContext()
     {
         return $this->template->getSourceContext();
     }
 
-    public function getTemplateName(): string
+    /**
+     * @return string
+     */
+    public function getTemplatename()
     {
         return $this->template->getTemplateName();
-    }
-
-    /**
-     * @internal
-     *
-     * @return Template
-     */
-    public function unwrap()
-    {
-        return $this->template;
     }
 }
 

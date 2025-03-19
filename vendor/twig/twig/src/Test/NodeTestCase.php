@@ -55,7 +55,7 @@ abstract class NodeTestCase extends TestCase
     {
         $line = $line > 0 ? "// line {$line}\n" : '';
 
-        return sprintf('%s($context["%s"] ?? null)', $line, $name);
+        return sprintf('%s($context["%s"] ?? null)', $line, $name, $name);
     }
 
     protected function getAttributeGetter()

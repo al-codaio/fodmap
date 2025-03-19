@@ -44,8 +44,10 @@ final class NodeTraverser
 
     /**
      * Traverses a node and calls the registered visitors.
+     *
+     * @return Node
      */
-    public function traverse(Node $node): Node
+    public function traverse(Node $node)
     {
         ksort($this->visitors);
         foreach ($this->visitors as $visitors) {
@@ -57,23 +59,16 @@ final class NodeTraverser
         return $node;
     }
 
-    /**
-     * @return Node|null
-     */
     private function traverseForVisitor(NodeVisitorInterface $visitor, Node $node)
     {
         $node = $visitor->enterNode($node, $this->env);
 
         foreach ($node as $k => $n) {
-            if (false !== ($m = $this->traverseForVisitor($visitor, $n)) && null !== $m) {
+            if (false !== $m = $this->traverseForVisitor($visitor, $n)) {
                 if ($m !== $n) {
                     $node->setNode($k, $m);
                 }
             } else {
-                if (false === $m) {
-                    @trigger_error('Returning "false" to remove a Node from NodeVisitorInterface::leaveNode() is deprecated since Twig version 2.9; return "null" instead.', \E_USER_DEPRECATED);
-                }
-
                 $node->removeNode($k);
             }
         }

@@ -19,14 +19,14 @@ namespace Symfony\Component\Routing;
  */
 class RouteCompiler implements RouteCompilerInterface
 {
-    public const REGEX_DELIMITER = '#';
+    const REGEX_DELIMITER = '#';
 
     /**
      * This string defines the characters that are automatically considered separators in front of
      * optional placeholders (with default and no static text following). Such a single separator
      * can be left out together with the optional placeholder from matching and generating URLs.
      */
-    public const SEPARATORS = '/,;.:-_~+*=@|';
+    const SEPARATORS = '/,;.:-_~+*=@|';
 
     /**
      * The maximum supported length of a PCRE subpattern name
@@ -34,7 +34,7 @@ class RouteCompiler implements RouteCompilerInterface
      *
      * @internal
      */
-    public const VARIABLE_MAXIMUM_LENGTH = 32;
+    const VARIABLE_MAXIMUM_LENGTH = 32;
 
     /**
      * {@inheritdoc}
@@ -59,14 +59,6 @@ class RouteCompiler implements RouteCompilerInterface
 
             $hostTokens = $result['tokens'];
             $hostRegex = $result['regex'];
-        }
-
-        $locale = $route->getDefault('_locale');
-        if (null !== $locale && null !== $route->getDefault('_canonical_route') && preg_quote($locale, self::REGEX_DELIMITER) === $route->getRequirement('_locale')) {
-            $requirements = $route->getRequirements();
-            unset($requirements['_locale']);
-            $route->setRequirements($requirements);
-            $route->setPath(str_replace('{_locale}', $locale, $route->getPath()));
         }
 
         $path = $route->getPath();
@@ -100,7 +92,7 @@ class RouteCompiler implements RouteCompilerInterface
         );
     }
 
-    private static function compilePattern(Route $route, string $pattern, bool $isHost): array
+    private static function compilePattern(Route $route, $pattern, $isHost)
     {
         $tokens = [];
         $variables = [];
@@ -119,10 +111,9 @@ class RouteCompiler implements RouteCompilerInterface
 
         // Match all variables enclosed in "{}" and iterate over them. But we only want to match the innermost variable
         // in case of nested "{}", e.g. {foo{bar}}. This in ensured because \w does not match "{" or "}" itself.
-        preg_match_all('#\{(!)?(\w+)\}#', $pattern, $matches, \PREG_OFFSET_CAPTURE | \PREG_SET_ORDER);
+        preg_match_all('#\{\w+\}#', $pattern, $matches, PREG_OFFSET_CAPTURE | PREG_SET_ORDER);
         foreach ($matches as $match) {
-            $important = $match[1][1] >= 0;
-            $varName = $match[2][0];
+            $varName = substr($match[0][0], 1, -1);
             // get all static text preceding the current variable
             $precedingText = substr($pattern, $pos, $match[0][1] - $pos);
             $pos = $match[0][1] + \strlen($match[0][0]);
@@ -135,7 +126,7 @@ class RouteCompiler implements RouteCompilerInterface
             } else {
                 $precedingChar = substr($precedingText, -1);
             }
-            $isSeparator = '' !== $precedingChar && str_contains(static::SEPARATORS, $precedingChar);
+            $isSeparator = '' !== $precedingChar && false !== strpos(static::SEPARATORS, $precedingChar);
 
             // A PCRE subpattern name must start with a non-digit. Also a PHP variable cannot start with a digit so the
             // variable would not be usable as a Controller action argument.
@@ -147,12 +138,12 @@ class RouteCompiler implements RouteCompilerInterface
             }
 
             if (\strlen($varName) > self::VARIABLE_MAXIMUM_LENGTH) {
-                throw new \DomainException(sprintf('Variable name "%s" cannot be longer than %d characters in route pattern "%s". Please use a shorter name.', $varName, self::VARIABLE_MAXIMUM_LENGTH, $pattern));
+                throw new \DomainException(sprintf('Variable name "%s" cannot be longer than %s characters in route pattern "%s". Please use a shorter name.', $varName, self::VARIABLE_MAXIMUM_LENGTH, $pattern));
             }
 
             if ($isSeparator && $precedingText !== $precedingChar) {
                 $tokens[] = ['text', substr($precedingText, 0, -\strlen($precedingChar))];
-            } elseif (!$isSeparator && '' !== $precedingText) {
+            } elseif (!$isSeparator && \strlen($precedingText) > 0) {
                 $tokens[] = ['text', $precedingText];
             }
 
@@ -192,13 +183,7 @@ class RouteCompiler implements RouteCompilerInterface
                 $regexp = self::transformCapturingGroupsToNonCapturings($regexp);
             }
 
-            if ($important) {
-                $token = ['variable', $isSeparator ? $precedingChar : '', $regexp, $varName, false, true];
-            } else {
-                $token = ['variable', $isSeparator ? $precedingChar : '', $regexp, $varName];
-            }
-
-            $tokens[] = $token;
+            $tokens[] = ['variable', $isSeparator ? $precedingChar : '', $regexp, $varName];
             $variables[] = $varName;
         }
 
@@ -207,12 +192,11 @@ class RouteCompiler implements RouteCompilerInterface
         }
 
         // find the first optional token
-        $firstOptional = \PHP_INT_MAX;
+        $firstOptional = PHP_INT_MAX;
         if (!$isHost) {
             for ($i = \count($tokens) - 1; $i >= 0; --$i) {
                 $token = $tokens[$i];
-                // variable is optional when it is not important and has a default value
-                if ('variable' === $token[0] && !($token[5] ?? false) && $route->hasDefault($token[3])) {
+                if ('variable' === $token[0] && $route->hasDefault($token[3])) {
                     $firstOptional = $i;
                 } else {
                     break;
@@ -232,7 +216,7 @@ class RouteCompiler implements RouteCompilerInterface
             $regexp .= 'u';
             for ($i = 0, $nbToken = \count($tokens); $i < $nbToken; ++$i) {
                 if ('variable' === $tokens[$i][0]) {
-                    $tokens[$i][4] = true;
+                    $tokens[$i][] = true;
                 }
             }
         }
@@ -280,7 +264,7 @@ class RouteCompiler implements RouteCompilerInterface
             preg_match('/^./u', $pattern, $pattern);
         }
 
-        return str_contains(static::SEPARATORS, $pattern[0]) ? $pattern[0] : '';
+        return false !== strpos(static::SEPARATORS, $pattern[0]) ? $pattern[0] : '';
     }
 
     /**

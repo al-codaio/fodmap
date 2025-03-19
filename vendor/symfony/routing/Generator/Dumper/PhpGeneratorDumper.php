@@ -11,17 +11,13 @@
 
 namespace Symfony\Component\Routing\Generator\Dumper;
 
-@trigger_error(sprintf('The "%s" class is deprecated since Symfony 4.3, use "CompiledUrlGeneratorDumper" instead.', PhpGeneratorDumper::class), \E_USER_DEPRECATED);
-
-use Symfony\Component\Routing\Matcher\Dumper\CompiledUrlMatcherDumper;
+use Symfony\Component\Routing\Matcher\Dumper\PhpMatcherDumper;
 
 /**
  * PhpGeneratorDumper creates a PHP class able to generate URLs for a given set of routes.
  *
  * @author Fabien Potencier <fabien@symfony.com>
  * @author Tobias Schultze <http://tobion.de>
- *
- * @deprecated since Symfony 4.3, use CompiledUrlGeneratorDumper instead.
  */
 class PhpGeneratorDumper extends GeneratorDumper
 {
@@ -79,8 +75,10 @@ EOF;
     /**
      * Generates PHP code representing an array of defined routes
      * together with the routes properties (e.g. requirements).
+     *
+     * @return string PHP code
      */
-    private function generateDeclaredRoutes(): string
+    private function generateDeclaredRoutes()
     {
         $routes = "[\n";
         foreach ($this->getRoutes()->all() as $name => $route) {
@@ -94,7 +92,7 @@ EOF;
             $properties[] = $compiledRoute->getHostTokens();
             $properties[] = $route->getSchemes();
 
-            $routes .= sprintf("        '%s' => %s,\n", $name, CompiledUrlMatcherDumper::export($properties));
+            $routes .= sprintf("        '%s' => %s,\n", $name, PhpMatcherDumper::export($properties));
         }
         $routes .= '    ]';
 
@@ -103,8 +101,10 @@ EOF;
 
     /**
      * Generates PHP code representing the `generate` method that implements the UrlGeneratorInterface.
+     *
+     * @return string PHP code
      */
-    private function generateGenerateMethod(): string
+    private function generateGenerateMethod()
     {
         return <<<'EOF'
     public function generate($name, $parameters = [], $referenceType = self::ABSOLUTE_PATH)
@@ -116,6 +116,7 @@ EOF;
         if (null !== $locale && null !== $name) {
             do {
                 if ((self::$declaredRoutes[$name.'.'.$locale][1]['_canonical_route'] ?? null) === $name) {
+                    unset($parameters['_locale']);
                     $name .= '.'.$locale;
                     break;
                 }
@@ -127,14 +128,6 @@ EOF;
         }
 
         list($variables, $defaults, $requirements, $tokens, $hostTokens, $requiredSchemes) = self::$declaredRoutes[$name];
-
-        if (isset($defaults['_canonical_route']) && isset($defaults['_locale'])) {
-            if (!\in_array('_locale', $variables, true)) {
-                unset($parameters['_locale']);
-            } elseif (!isset($parameters['_locale'])) {
-                $parameters['_locale'] = $defaults['_locale'];
-            }
-        }
 
         return $this->doGenerate($variables, $defaults, $requirements, $tokens, $parameters, $name, $referenceType, $hostTokens, $requiredSchemes);
     }

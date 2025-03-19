@@ -87,7 +87,7 @@ final class StagingExtension extends AbstractExtension
     public function addTest(TwigTest $test)
     {
         if (isset($this->tests[$test->getName()])) {
-            throw new \LogicException(sprintf('Test "%s" is already registered.', $test->getName()));
+            throw new \LogicException(sprintf('Test "%s" is already registered.', $test->getTag()));
         }
 
         $this->tests[$test->getName()] = $test;

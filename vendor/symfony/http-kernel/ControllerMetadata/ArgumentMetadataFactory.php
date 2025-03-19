@@ -21,25 +21,20 @@ final class ArgumentMetadataFactory implements ArgumentMetadataFactoryInterface
     /**
      * {@inheritdoc}
      */
-    public function createArgumentMetadata($controller): array
+    public function createArgumentMetadata($controller)
     {
         $arguments = [];
 
         if (\is_array($controller)) {
             $reflection = new \ReflectionMethod($controller[0], $controller[1]);
-            $class = $reflection->class;
         } elseif (\is_object($controller) && !$controller instanceof \Closure) {
-            $reflection = new \ReflectionMethod($controller, '__invoke');
-            $class = $reflection->class;
+            $reflection = (new \ReflectionObject($controller))->getMethod('__invoke');
         } else {
             $reflection = new \ReflectionFunction($controller);
-            if ($class = str_contains($reflection->name, '{closure}') ? null : $reflection->getClosureScopeClass()) {
-                $class = $class->name;
-            }
         }
 
         foreach ($reflection->getParameters() as $param) {
-            $arguments[] = new ArgumentMetadata($param->getName(), $this->getType($param, $class), $param->isVariadic(), $param->isDefaultValueAvailable(), $param->isDefaultValueAvailable() ? $param->getDefaultValue() : null, $param->allowsNull());
+            $arguments[] = new ArgumentMetadata($param->getName(), $this->getType($param, $reflection), $param->isVariadic(), $param->isDefaultValueAvailable(), $param->isDefaultValueAvailable() ? $param->getDefaultValue() : null, $param->allowsNull());
         }
 
         return $arguments;
@@ -47,23 +42,30 @@ final class ArgumentMetadataFactory implements ArgumentMetadataFactoryInterface
 
     /**
      * Returns an associated type to the given parameter if available.
+     *
+     * @param \ReflectionParameter $parameter
+     *
+     * @return string|null
      */
-    private function getType(\ReflectionParameter $parameter, ?string $class): ?string
+    private function getType(\ReflectionParameter $parameter, \ReflectionFunctionAbstract $function)
     {
         if (!$type = $parameter->getType()) {
-            return null;
+            return;
         }
-        $name = $type instanceof \ReflectionNamedType ? $type->getName() : (string) $type;
+        $name = $type->getName();
+        $lcName = strtolower($name);
 
-        if (null !== $class) {
-            switch (strtolower($name)) {
-                case 'self':
-                    return $class;
-                case 'parent':
-                    return get_parent_class($class) ?: null;
-            }
+        if ('self' !== $lcName && 'parent' !== $lcName) {
+            return $name;
         }
-
-        return $name;
+        if (!$function instanceof \ReflectionMethod) {
+            return;
+        }
+        if ('self' === $lcName) {
+            return $function->getDeclaringClass()->name;
+        }
+        if ($parent = $function->getDeclaringClass()->getParentClass()) {
+            return $parent->name;
+        }
     }
 }

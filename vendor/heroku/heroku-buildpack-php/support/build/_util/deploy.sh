@@ -29,7 +29,7 @@ shift $((OPTIND-1))
 
 if [[ $# -lt 1 ]]; then
 	cat >&2 <<-EOF
-		Usage: $(basename "$0") [--publish] FORMULA-VERSION [--overwrite]
+		Usage: $(basename $0) [--publish] FORMULA-VERSION [--overwrite]
 		  If --publish is given, mkrepo.sh will be invoked after a successful deploy to
 		  re-generate the repo. CAUTION: this will cause all manifests in the bucket to
 		  be included in the repo, including potentially currently unpublished ones.
@@ -44,9 +44,8 @@ if [[ -z "${AWS_ACCESS_KEY_ID:-}" || -z "${AWS_SECRET_ACCESS_KEY:-}" ]]; then
 fi
 
 # a helper (print_or_export_manifest_cmd) called in the script invoked by Bob will write to this if set
-MANIFEST_CMD=$(mktemp -t "manifest.XXXXX")
-export MANIFEST_CMD
-trap 'rm -rf "$MANIFEST_CMD";' EXIT
+export MANIFEST_CMD=$(mktemp -t "manifest.XXXXX")
+trap 'rm -rf $MANIFEST_CMD;' EXIT
 
 # make sure we start cleanly
 rm -rf /app/.heroku/php
@@ -55,7 +54,7 @@ rm -rf /app/.heroku/php
 # but modify any path by stripping $WORKSPACE_DIR from the front, if it's there
 # so that one can also pass in the full path to the formula relative to the root, and not just relative to $WORKSPACE_DIR
 # that allows for simpler mass build loops using wildcards without having to worry about the relative location of other references such as an --env-file, like:
-# for f in support/build/php-{5,7}.* support/build/extensions/no-debug-non-zts-201*/{redis,blackfire,imagick}-*; do docker run --rm --tty --interactive --env-file=../dockerenv.heroku-22 heroku-php-builder-heroku-22 deploy.sh $f; done
+# for f in support/build/php-{5,7}.* support/build/extensions/no-debug-non-zts-201*/{redis,blackfire,imagick}-*; do docker run --rm --tty --interactive --env-file=../dockerenv.cedar-14 heroku-php-builder-cedar-14 deploy.sh $f; done
 args=()
 for var in "$@"; do
 	expanded="$(pwd)/$var"
@@ -70,9 +69,9 @@ bob deploy "${args[@]}"
 # invoke manifest upload
 echo ""
 echo "Uploading manifest..."
-. "$MANIFEST_CMD"
+. $MANIFEST_CMD
 
 if $publish; then
 	echo "Updating repository..."
-	"$(dirname "$BASH_SOURCE")/mkrepo.sh" --upload
+	$(dirname $BASH_SOURCE)/mkrepo.sh --upload "$S3_BUCKET" "${S3_PREFIX}"
 fi

@@ -43,8 +43,10 @@ final class TokenStream
 
     /**
      * Sets the pointer to the next token and returns the old one.
+     *
+     * @return Token
      */
-    public function next(): Token
+    public function next()
     {
         if (!isset($this->tokens[++$this->current])) {
             throw new SyntaxError('Unexpected end of template.', $this->tokens[$this->current - 1]->getLine(), $this->source);
@@ -67,16 +69,17 @@ final class TokenStream
 
     /**
      * Tests a token and returns it or throws a syntax error.
+     *
+     * @return Token
      */
-    public function expect($type, $value = null, string $message = null): Token
+    public function expect($type, $value = null, $message = null)
     {
         $token = $this->tokens[$this->current];
         if (!$token->test($type, $value)) {
             $line = $token->getLine();
-            throw new SyntaxError(sprintf('%sUnexpected token "%s"%s ("%s" expected%s).',
+            throw new SyntaxError(sprintf('%sUnexpected token "%s" of value "%s" ("%s" expected%s).',
                 $message ? $message.'. ' : '',
-                Token::typeToEnglish($token->getType()),
-                $token->getValue() ? sprintf(' of value "%s"', $token->getValue()) : '',
+                Token::typeToEnglish($token->getType()), $token->getValue(),
                 Token::typeToEnglish($type), $value ? sprintf(' with value "%s"', $value) : ''),
                 $line,
                 $this->source
@@ -89,8 +92,12 @@ final class TokenStream
 
     /**
      * Looks at the next token.
+     *
+     * @param int $number
+     *
+     * @return Token
      */
-    public function look(int $number = 1): Token
+    public function look($number = 1)
     {
         if (!isset($this->tokens[$this->current + $number])) {
             throw new SyntaxError('Unexpected end of template.', $this->tokens[$this->current + $number - 1]->getLine(), $this->source);
@@ -101,21 +108,28 @@ final class TokenStream
 
     /**
      * Tests the current token.
+     *
+     * @return bool
      */
-    public function test($primary, $secondary = null): bool
+    public function test($primary, $secondary = null)
     {
         return $this->tokens[$this->current]->test($primary, $secondary);
     }
 
     /**
      * Checks if end of stream was reached.
+     *
+     * @return bool
      */
-    public function isEOF(): bool
+    public function isEOF()
     {
         return /* Token::EOF_TYPE */ -1 === $this->tokens[$this->current]->getType();
     }
 
-    public function getCurrent(): Token
+    /**
+     * @return Token
+     */
+    public function getCurrent()
     {
         return $this->tokens[$this->current];
     }
@@ -123,9 +137,11 @@ final class TokenStream
     /**
      * Gets the source associated with this stream.
      *
+     * @return Source
+     *
      * @internal
      */
-    public function getSourceContext(): Source
+    public function getSourceContext()
     {
         return $this->source;
     }
